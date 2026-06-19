@@ -1,0 +1,49 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
+
+export type UserDocument = User & Document;
+
+export enum UserRole {
+  ADMIN = 'admin',
+  TEACHER = 'teacher',
+  STUDENT = 'student',
+}
+
+@Schema({ timestamps: true, collection: 'users' })
+export class User {
+  @Prop({ required: true, unique: true, lowercase: true, trim: true })
+  email: string;
+
+  @Prop({ required: true, select: false })
+  passwordHash: string;
+
+  @Prop({ required: true, trim: true, maxlength: 100 })
+  fullName: string;
+
+  @Prop({ default: null })
+  avatarUrl: string;
+
+  @Prop({ type: String, enum: UserRole, default: UserRole.STUDENT })
+  role: UserRole;
+
+  @Prop({ default: true })
+  isActive: boolean;
+
+  @Prop({ default: null })
+  deletedAt: Date;
+}
+
+export const UserSchema = SchemaFactory.createForClass(User);
+
+// Virtual id
+UserSchema.set('toJSON', {
+  virtuals: true,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  transform: (_doc: any, ret: any) => {
+    ret['id'] = ret['_id'];
+    delete ret['_id'];
+    delete ret['__v'];
+    delete ret['passwordHash'];
+    return ret;
+  },
+});
