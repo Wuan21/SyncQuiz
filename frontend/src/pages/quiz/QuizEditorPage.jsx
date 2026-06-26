@@ -130,15 +130,24 @@ export default function QuizEditorPage() {
   // ── Image upload ───────────────────────────────────────────────────────────
   const uploadImage = async (file) => {
     try {
-      const { uploadUrl, publicUrl } = await presignUpload({
+      const uploadRes = await presignUpload({
         fileName: file.name,
         contentType: file.type,
         folder: 'questions',
       })
-      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+      const { uploadUrl, publicUrl, backend } = uploadRes
+
+      // Use PUT for S3, POST for local fallback
+      const method = backend === 'local' ? 'POST' : 'PUT'
+      await fetch(uploadUrl, {
+        method,
+        body: file,
+        headers: { 'Content-Type': file.type },
+      })
       updateQ('imageUrl', publicUrl)
       toast.success('Image uploaded')
-    } catch {
+    } catch (err) {
+      console.error('Upload error:', err)
       toast.error('Upload failed')
     }
   }
@@ -241,9 +250,6 @@ export default function QuizEditorPage() {
             <button onClick={addQuestion}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-white/8 hover:bg-white/15 text-white/60 hover:text-white text-sm font-medium transition-all">
               <Plus size={15} /> Thêm câu</button>
-          </div>
-        </div>
-            </button>
           </div>
         </div>
 

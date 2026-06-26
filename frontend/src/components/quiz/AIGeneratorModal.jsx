@@ -1,14 +1,14 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Sparkles, X, Loader, ChevronDown, CheckCircle, AlertCircle } from 'lucide-react'
+import { Sparkles, X, Loader, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { generateAIQuiz } from '../../api/advanced.api'
 
 const COUNTS = [3, 5, 8, 10, 15, 20]
 const DIFFICULTIES = [
-  { value: 'easy', label: 'Easy', desc: 'Dễ — kiến thức cơ bản', color: 'text-green-400' },
+  { value: 'easy', label: 'Easy', desc: 'Dễ - kiến thức cơ bản', color: 'text-green-400' },
   { value: 'medium', label: 'Medium', desc: 'Trung bình', color: 'text-yellow-400' },
-  { value: 'hard', label: 'Hard', desc: 'Khó — cần hiểu sâu', color: 'text-red-400' },
+  { value: 'hard', label: 'Hard', desc: 'Khó - cần hiểu sâu', color: 'text-red-400' },
 ]
 const LANGUAGES = ['Vietnamese', 'English', 'Bilingual (Vi + En)']
 
@@ -20,9 +20,12 @@ export default function AIGeneratorModal({ onImport, onClose }) {
     mutationFn: generateAIQuiz,
     onSuccess: (data) => {
       setPreview(data.questions)
-      toast.success(`✨ Generated ${data.questions.length} questions!`)
+      toast.success(`Tạo thành công ${data.questions.length} câu hỏi!`)
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'AI generation failed'),
+    onError: (err) => {
+      const message = err.message || err.response?.data?.message || 'Lỗi tạo câu hỏi'
+      toast.error(message)
+    },
   })
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
@@ -32,7 +35,7 @@ export default function AIGeneratorModal({ onImport, onClose }) {
     <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-gray-900 border border-white/10 rounded-t-3xl sm:rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto shadow-2xl">
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="sticky top-0 bg-gray-900/95 backdrop-blur flex items-center justify-between px-6 py-4 border-b border-white/10 z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-violet-600/20 rounded-xl flex items-center justify-center">
@@ -219,127 +222,3 @@ export default function AIGeneratorModal({ onImport, onClose }) {
   )
 }
 
-  const [form, setForm] = useState({ topic: '', count: 5, difficulty: 'medium', language: 'Vietnamese' })
-  const [preview, setPreview] = useState(null)
-
-  const mutation = useMutation({
-    mutationFn: generateAIQuiz,
-    onSuccess: (data) => {
-      setPreview(data.questions)
-      toast.success(`Generated ${data.questions.length} questions!`)
-    },
-    onError: (err) => toast.error(err.response?.data?.message || 'AI generation failed'),
-  })
-
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
-
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-violet-600/20 rounded-xl">
-              <Sparkles size={22} className="text-violet-400" />
-            </div>
-            <div>
-              <h2 className="font-bold text-lg">AI Quiz Generator</h2>
-              <p className="text-white/40 text-xs">Powered by Google Gemini</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="p-6 space-y-4">
-          {!preview ? (
-            <>
-              <div>
-                <label className="block text-sm text-white/60 mb-1">Topic / Chủ đề *</label>
-                <input
-                  value={form.topic}
-                  onChange={(e) => set('topic', e.target.value)}
-                  placeholder="e.g. World War II, Python programming, Photosynthesis..."
-                  className="input"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm text-white/60 mb-1">Questions</label>
-                  <select value={form.count} onChange={(e) => set('count', +e.target.value)}
-                    className="input py-2.5">
-                    {[3, 5, 8, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-white/60 mb-1">Difficulty</label>
-                  <select value={form.difficulty} onChange={(e) => set('difficulty', e.target.value)}
-                    className="input py-2.5 capitalize">
-                    {DIFFICULTIES.map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-white/60 mb-1">Language</label>
-                  <select value={form.language} onChange={(e) => set('language', e.target.value)}
-                    className="input py-2.5">
-                    {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <button
-                onClick={() => mutation.mutate(form)}
-                disabled={!form.topic.trim() || mutation.isPending}
-                className="btn-primary w-full flex items-center justify-center gap-2 py-3"
-              >
-                {mutation.isPending
-                  ? <><Loader size={18} className="animate-spin" /> Generating...</>
-                  : <><Sparkles size={18} /> Generate {form.count} Questions</>
-                }
-              </button>
-
-              <p className="text-center text-white/30 text-xs">
-                Requires GEMINI_API_KEY in backend .env •{' '}
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
-                  className="text-violet-400 hover:underline">Get free API key</a>
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                {preview.map((q, i) => (
-                  <div key={i} className="bg-white/5 rounded-xl p-4">
-                    <p className="font-medium mb-2">Q{i + 1}: {q.content}</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {q.options.map((o, oi) => (
-                        <div key={oi} className={`text-sm px-3 py-1.5 rounded-lg ${
-                          o.isCorrect ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 text-white/50'
-                        }`}>
-                          {o.isCorrect ? '✓ ' : ''}{o.text}
-                        </div>
-                      ))}
-                    </div>
-                    {q.explanation && (
-                      <p className="text-white/40 text-xs mt-2">💡 {q.explanation}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setPreview(null)} className="btn-secondary flex-1">
-                  Regenerate
-                </button>
-                <button onClick={() => { onImport(preview); onClose() }} className="btn-primary flex-1">
-                  Add to Quiz ({preview.length} questions)
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
