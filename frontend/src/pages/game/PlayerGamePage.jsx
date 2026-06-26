@@ -22,6 +22,8 @@ export default function PlayerGamePage() {
   const [feedback, setFeedback] = useState(null) // { isCorrect, pointsEarned, totalScore }
   const [leaderboard, setLeaderboard] = useState([])
   const [correctOptions, setCorrectOptions] = useState([])
+  const [removedOptions, setRemovedOptions] = useState([]) // 50/50
+  const [powerUps, setPowerUps] = useState({ double_points: 1, fifty_fifty: 1, extra_time: 1 })
   const answerTs = useRef(null)
 
   useEffect(() => {
@@ -35,8 +37,13 @@ export default function PlayerGamePage() {
       setSelected(null)
       setFeedback(null)
       setCorrectOptions([])
+      setRemovedOptions([])
       setPhase('question')
       answerTs.current = Date.now()
+    })
+
+    socket.on('powerup:activated', ({ type, removedOptions: ro }) => {
+      if (type === 'fifty_fifty' && ro) setRemovedOptions(ro)
     })
 
     socket.on('player:answer_ack', (data) => {
@@ -72,6 +79,12 @@ export default function PlayerGamePage() {
     const t = setInterval(() => setTimeLeft((n) => Math.max(0, n - 1)), 1000)
     return () => clearInterval(t)
   }, [phase, timeLeft])
+
+  const usePowerUp = (type) => {
+    if (!powerUps[type] || selected !== null) return
+    socket?.emit('player:powerup', { type })
+    setPowerUps((p) => ({ ...p, [type]: 0 }))
+  }
 
   const answer = (optionIndex) => {
     if (phase !== 'question' || selected !== null) return
@@ -188,30 +201,63 @@ export default function PlayerGamePage() {
       {/* Answer buttons */}
       <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto w-full">
         <AnimatePresence>
-          {question?.options.map((opt, i) => (
-            <motion.button
-              key={i}
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: i * 0.08 }}
-              onClick={() => answer(i)}
-              disabled={selected !== null}
-              className={`rounded-2xl p-4 text-white font-bold text-center text-lg transition-all active:scale-95 ${
-                selected === i
-                  ? 'ring-4 ring-white scale-95'
-                  : selected !== null
-                  ? 'opacity-40'
-                  : 'hover:scale-105'
-              }`}
-              style={{ background: COLORS[i], minHeight: 80 }}
-            >
-              <span className="text-2xl">{SHAPES[i]}</span>
-              <br />
-              <span className="text-sm mt-1 block">{opt.text}</span>
-            </motion.button>
-          ))}
+          {question?.options.map((opt, i) => {
+            const removed = removedOptions.includes(i)
+            return (
+              <motion.button
+                key={i}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: removed ? 0.7 : 1, opacity: removed ? 0.15 : 1 }}
+                transition={{ delay: i * 0.08 }}
+                onClick={() => !removed && answer(i)}
+                disabled={selected !== null || removed}
+                className={`rounded-2xl p-4 text-white font-bold text-center text-lg transition-all active:scale-95 ${
+                  selected === i ? 'ring-4 ring-white scale-95'
+                  : selected !== null || removed ? 'opacity-40' : 'hover:scale-105'
+                }`}
+                style={{ background: COLORS[i], minHeight: 80 }}
+              >
+                <span className="text-2xl">{SHAPES[i]}</span>
+                <br />
+                <span className="text-sm mt-1 block">{opt.text}</span>
+              </motion.button>
+            )
+          })}
         </AnimatePresence>
       </div>
+
+      {/* Power-ups bar */}
+      {selected === null && (
+        <div className="flex justify-center gap-3 mt-4">
+          <PowerUpBtn
+            label="2×" title="Double Points" active={powerUps.double_points > 0}
+            onClick={() => usePowerUp('double_points')} color="bg-yellow-500"
+          />
+          <PowerUpBtn
+            label="50/50" title="Remove 2 wrong answers" active={powerUps.fifty_fifty > 0}
+            onClick={() => usePowerUp('fifty_fifty')} color="bg-blue-500"
+          />
+          <PowerUpBtn
+            label="+15s" title="Add 15 seconds" active={powerUps.extra_time > 0}
+            onClick={() => usePowerUp('extra_time')} color="bg-green-500"
+          />
+        </div>
+      )}
     </div>
+  )
+}
+
+function PowerUpBtn({ label, title, active, onClick, color }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!active}
+      title={title}
+      className={`w-14 h-14 rounded-full font-bold text-white text-sm transition-all active:scale-90 ${
+        active ? `${color} shadow-lg hover:scale-110` : 'bg-white/10 opacity-40 cursor-not-allowed'
+      }`}
+    >
+      {label}
+    </button>
   )
 }

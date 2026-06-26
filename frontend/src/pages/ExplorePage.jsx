@@ -27,7 +27,7 @@ export default function ExplorePage() {
             placeholder="Search public quizzes..." className="input pl-10" />
         </div>
         <select value={category} onChange={(e) => setCategory(e.target.value)}
-          className="bg-white/10 border border-white/20 text-white rounded-xl px-4 py-3 outline-none">
+          className="select">
           <option value="">All Categories</option>
           {categories?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>

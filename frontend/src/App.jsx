@@ -16,6 +16,8 @@ import PlayerJoinPage from './pages/game/PlayerJoinPage'
 import PlayerGamePage from './pages/game/PlayerGamePage'
 import ResultsPage from './pages/game/ResultsPage'
 import ExplorePage from './pages/ExplorePage'
+import AnalyticsPage from './pages/analytics/AnalyticsPage'
+import HomeworkPage from './pages/homework/HomeworkPage'
 
 export default function App() {
   const loadUser = useAuthStore((s) => s.loadUser)
@@ -28,14 +30,12 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/join" element={<PlayerJoinPage />} />
         <Route path="/join/:pin" element={<PlayerJoinPage />} />
         <Route path="/play/:pin" element={<PlayerGamePage />} />
 
-        {/* App shell */}
         <Route element={<Layout />}>
           <Route path="/explore" element={<ExplorePage />} />
           <Route element={<ProtectedRoute />}>
@@ -47,6 +47,8 @@ export default function App() {
             <Route path="/host/:quizId" element={<HostLobbyPage />} />
             <Route path="/host/game/:pin" element={<HostGamePage />} />
             <Route path="/results/:sessionId" element={<ResultsPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/homework" element={<HomeworkPage />} />
           </Route>
         </Route>
 

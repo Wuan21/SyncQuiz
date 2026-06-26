@@ -1,12 +1,14 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Zap, LayoutDashboard, BookOpen, Compass, LogOut, Menu, X } from 'lucide-react'
+import { Zap, LayoutDashboard, BookOpen, Compass, LogOut, Menu, X, TrendingUp, ClipboardList } from 'lucide-react'
 import { useState } from 'react'
 import useAuthStore from '../../store/useAuthStore'
 
 const navLinks = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/quizzes', label: 'My Quizzes', icon: BookOpen },
+  { to: '/quizzes', label: 'Quizzes', icon: BookOpen },
   { to: '/explore', label: 'Explore', icon: Compass },
+  { to: '/analytics', label: 'Analytics', icon: TrendingUp },
+  { to: '/homework', label: 'Homework', icon: ClipboardList },
 ]
 
 export default function Navbar() {
@@ -32,19 +34,21 @@ export default function Navbar() {
         </Link>
 
         {/* Desktop links */}
-        {user && (
-          <div className="hidden md:flex items-center gap-1">
+          {user && (
+          <div className="hidden md:flex items-center gap-0.5">
             {navLinks.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive ? 'bg-violet-600 text-white' : 'text-white/60 hover:text-white hover:bg-white/10'
+                  `flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-violet-600/20 text-violet-300'
+                      : 'text-white/50 hover:text-white hover:bg-white/8'
                   }`
                 }
               >
-                <Icon size={16} />
+                <Icon size={15} />
                 {label}
               </NavLink>
             ))}

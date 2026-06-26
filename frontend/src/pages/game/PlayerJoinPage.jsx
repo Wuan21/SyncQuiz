@@ -17,14 +17,14 @@ export default function PlayerJoinPage() {
   })
   const [avatarIdx, setAvatarIdx] = useState(0)
 
-  const onSubmit = async ({ pin, nickname }) => {
+  const onSubmit = async ({ pin, nickname, teamName }) => {
     try {
       const session = await getSessionByPin(pin)
       if (session.status !== 'waiting') return toast.error('Game already started or ended')
 
       connect()
       setTimeout(() => {
-        socket?.emit('player:join', { pin, nickname: nickname.trim(), avatarIndex: avatarIdx })
+        socket?.emit('player:join', { pin, nickname: nickname.trim(), avatarIndex: avatarIdx, teamName: teamName?.trim() || null })
         socket?.once('player:joined', () => navigate(`/play/${pin}?nickname=${encodeURIComponent(nickname)}`))
         socket?.once('error', ({ message }) => toast.error(message))
       }, 300)
@@ -44,31 +44,48 @@ export default function PlayerJoinPage() {
         </div>
 
         <div className="card">
-          <h2 className="text-xl font-bold text-center mb-6">Join a Game</h2>
+          <h2 className="text-xl font-bold text-center mb-1">Tham gia game</h2>
+          <p className="text-white/40 text-sm text-center mb-6">Nhập mã PIN từ host để vào</p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/* PIN */}
             <div>
-              <label className="block text-sm text-white/60 mb-1">Game PIN</label>
+              <label className="block text-sm font-medium text-white/60 mb-1.5">Mã PIN <span className="text-red-400">*</span></label>
               <input
-                {...register('pin', { required: 'PIN is required', pattern: { value: /^\d{6}$/, message: '6-digit PIN' } })}
-                placeholder="000000"
+                {...register('pin', { required: 'Nhập PIN', pattern: { value: /^\d{6}$/, message: 'PIN gồm 6 chữ số' } })}
+                placeholder="_ _ _ _ _ _"
                 maxLength={6}
-                className="input text-center text-2xl font-mono tracking-widest"
+                inputMode="numeric"
+                className="input text-center text-3xl font-mono tracking-[0.5em] py-4"
+                autoFocus
               />
             </div>
 
+            {/* Nickname */}
             <div>
-              <label className="block text-sm text-white/60 mb-1">Nickname</label>
+              <label className="block text-sm font-medium text-white/60 mb-1.5">Nickname <span className="text-red-400">*</span></label>
               <input
-                {...register('nickname', { required: 'Nickname is required', maxLength: { value: 20, message: 'Max 20 chars' } })}
-                placeholder="Your cool name"
+                {...register('nickname', { required: 'Nhập nickname', maxLength: { value: 20, message: 'Tối đa 20 ký tự' } })}
+                placeholder="Tên của bạn"
                 className="input"
               />
             </div>
 
-            {/* Avatar picker */}
+            {/* Team (optional) */}
             <div>
-              <label className="block text-sm text-white/60 mb-2">Pick Avatar</label>
+              <label className="block text-sm font-medium text-white/60 mb-1.5">
+                Tên nhóm <span className="text-white/30 font-normal">(tùy chọn)</span>
+              </label>
+              <input
+                {...register('teamName')}
+                placeholder="VD: Team Alpha"
+                className="input"
+              />
+            </div>
+
+            {/* Avatar */}
+            <div>
+              <label className="block text-sm font-medium text-white/60 mb-2">Chọn avatar</label>
               <div className="grid grid-cols-5 gap-2">
                 {AVATARS.map((a, i) => (
                   <button
@@ -83,8 +100,8 @@ export default function PlayerJoinPage() {
               </div>
             </div>
 
-            <button type="submit" disabled={isSubmitting} className="btn-primary w-full text-lg py-3">
-              {isSubmitting ? 'Joining...' : 'Join Game 🚀'}
+            <button type="submit" disabled={isSubmitting} className="btn-primary w-full py-3.5 text-base">
+              {isSubmitting ? 'Đang vào...' : 'Vào game 🚀'}
             </button>
           </form>
         </div>

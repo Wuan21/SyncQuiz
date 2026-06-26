@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Save, ArrowLeft, Trash2, Image, Clock, Star, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Save, ArrowLeft, Trash2, Image, Clock, Star, ChevronUp, ChevronDown, Sparkles, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
   getQuizFull, createQuiz, updateQuiz,
   createQuestion, updateQuestion, deleteQuestion, reorderQuestions,
 } from '../../api/quizzes.api'
 import { presignUpload } from '../../api/game.api'
+import { importCSV, downloadCSVTemplate } from '../../api/advanced.api'
+import AIGeneratorModal from '../../components/quiz/AIGeneratorModal'
 
 const COLORS = ['#e53935', '#1e88e5', '#43a047', '#f9a825']
 const COLOR_LABELS = ['Red', 'Blue', 'Green', 'Yellow']
@@ -38,6 +40,7 @@ export default function QuizEditorPage() {
   const [questions, setQuestions] = useState([emptyQuestion()])
   const [activeQ, setActiveQ] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [showAI, setShowAI] = useState(false)
 
   const { data } = useQuery({
     queryKey: ['quiz-full', id],
@@ -140,107 +143,150 @@ export default function QuizEditorPage() {
     }
   }
 
+  // AI import
+  const handleAIImport = (aiQuestions) => {
+    setQuestions((qs) => [...qs.filter((q) => q.content), ...aiQuestions])
+    toast.success(`Added ${aiQuestions.length} AI questions!`)
+  }
+
+  // CSV import
+  const handleCSVImport = async (file) => {
+    if (!id) return toast.error('Save the quiz first before importing CSV')
+    try {
+      const result = await importCSV(id, file)
+      toast.success(`Imported ${result.imported} questions!`)
+      qc.invalidateQueries(['quiz-full', id])
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Import failed')
+    }
+  }
+
   const q = questions[activeQ] || emptyQuestion()
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col bg-gray-950">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-gray-950/80 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-white/50 hover:text-white transition-colors">
-            <ArrowLeft size={20} />
+
+      {/* ── Top Bar ── */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-gray-950 shrink-0">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <button onClick={() => navigate(-1)}
+            className="w-8 h-8 rounded-lg bg-white/8 hover:bg-white/15 flex items-center justify-center text-white/60 hover:text-white transition-all shrink-0">
+            <ArrowLeft size={16} />
           </button>
           <input
             value={meta.title}
             onChange={(e) => setMeta((m) => ({ ...m, title: e.target.value }))}
-            placeholder="Quiz title..."
-            className="bg-transparent text-lg font-semibold outline-none text-white placeholder-white/30 w-64"
+            placeholder="Tên quiz..."
+            className="bg-transparent text-lg font-bold outline-none text-white placeholder-white/25 flex-1 min-w-0"
           />
+          <span className="text-white/25 text-sm shrink-0">{questions.length} câu</span>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-2 ml-4 shrink-0">
+          <button onClick={() => setShowAI(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/35 border border-violet-500/30 text-violet-300 text-sm font-medium transition-all">
+            <Sparkles size={14} /> AI
+          </button>
+          <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 border border-white/10 text-white/60 hover:text-white text-sm font-medium transition-all cursor-pointer">
+            <Upload size={14} /> CSV
+            <input type="file" accept=".csv" className="hidden"
+              onChange={(e) => e.target.files[0] && handleCSVImport(e.target.files[0])} />
+          </label>
           <select
             value={meta.visibility}
             onChange={(e) => setMeta((m) => ({ ...m, visibility: e.target.value }))}
-            className="bg-white/10 border border-white/20 text-white text-sm rounded-lg px-3 py-1.5 outline-none"
+            className="select text-sm py-1.5 w-auto"
           >
-            <option value="private">Private</option>
-            <option value="public">Public</option>
+            <option value="private">🔒 Private</option>
+            <option value="public">🌐 Public</option>
           </select>
-          <button onClick={save} disabled={saving} className="btn-primary flex items-center gap-2 py-2 text-sm">
-            <Save size={16} /> {saving ? 'Saving...' : 'Save'}
+          <button onClick={save} disabled={saving}
+            className="btn-primary text-sm py-1.5 px-4 flex items-center gap-1.5">
+            <Save size={15} /> {saving ? 'Đang lưu...' : 'Lưu'}
           </button>
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar — question list */}
-        <div className="w-56 border-r border-white/10 bg-gray-900/50 flex flex-col overflow-y-auto">
-          <div className="p-2 space-y-1">
+        {/* ── Sidebar ── */}
+        <div className="w-52 border-r border-white/10 bg-gray-900/40 flex flex-col overflow-hidden">
+          <div className="px-3 py-2.5 border-b border-white/8">
+            <p className="text-white/40 text-xs font-medium uppercase tracking-wider">Câu hỏi</p>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {questions.map((q, i) => (
               <button
                 key={i}
                 onClick={() => setActiveQ(i)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between gap-2 ${
-                  i === activeQ ? 'bg-violet-600 text-white' : 'text-white/60 hover:bg-white/10'
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-all group flex items-start gap-2 ${
+                  i === activeQ
+                    ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/20'
+                    : 'text-white/50 hover:bg-white/8 hover:text-white/80'
                 }`}
               >
-                <span className="truncate flex-1">Q{i + 1}: {q.content || 'Empty'}</span>
-                <div className="flex gap-0.5 shrink-0">
-                  <button onClick={(e) => { e.stopPropagation(); moveQ(i, -1) }} className="opacity-50 hover:opacity-100">
-                    <ChevronUp size={12} />
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); moveQ(i, 1) }} className="opacity-50 hover:opacity-100">
-                    <ChevronDown size={12} />
-                  </button>
+                <span className={`shrink-0 w-5 h-5 rounded flex items-center justify-center text-xs font-bold mt-0.5 ${
+                  i === activeQ ? 'bg-white/20' : 'bg-white/10'
+                }`}>{i + 1}</span>
+                <span className="flex-1 truncate leading-snug">{q.content || 'Câu trống'}</span>
+                <div className="flex flex-col gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={(e) => { e.stopPropagation(); moveQ(i, -1) }}
+                    className="hover:text-white transition-colors"><ChevronUp size={11} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); moveQ(i, 1) }}
+                    className="hover:text-white transition-colors"><ChevronDown size={11} /></button>
                 </div>
               </button>
             ))}
           </div>
-          <div className="p-2 border-t border-white/10 mt-auto">
-            <button onClick={addQuestion} className="btn-secondary w-full text-sm flex items-center justify-center gap-2 py-2">
-              <Plus size={16} /> Add Question
+          <div className="p-2 border-t border-white/8">
+            <button onClick={addQuestion}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-white/8 hover:bg-white/15 text-white/60 hover:text-white text-sm font-medium transition-all">
+              <Plus size={15} /> Thêm câu</button>
+          </div>
+        </div>
             </button>
           </div>
         </div>
 
-        {/* Main editor */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-2xl mx-auto space-y-6">
+        {/* ── Main Editor ── */}
+        <div className="flex-1 overflow-y-auto bg-gray-950">
+          <div className="max-w-2xl mx-auto p-6 space-y-4">
+
             {/* Question content */}
             <div className="card">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-white/50">Question {activeQ + 1} of {questions.length}</span>
+                <span className="text-xs font-semibold text-white/35 uppercase tracking-wider">
+                  Câu {activeQ + 1} / {questions.length}
+                </span>
                 <button
                   onClick={() => removeQuestion(activeQ)}
-                  className="text-red-400/60 hover:text-red-400 transition-colors"
                   disabled={questions.length === 1}
+                  className="flex items-center gap-1.5 text-xs text-red-400/50 hover:text-red-400 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={13} /> Xóa câu
                 </button>
               </div>
 
               <textarea
                 value={q.content}
                 onChange={(e) => updateQ('content', e.target.value)}
-                placeholder="Type your question here..."
+                placeholder="Nhập câu hỏi tại đây..."
                 rows={3}
-                className="input resize-none text-lg"
+                className="input resize-none text-base leading-relaxed"
               />
 
-              {/* Image upload */}
+              {/* Image */}
               <div className="mt-3">
                 {q.imageUrl ? (
-                  <div className="relative">
-                    <img src={q.imageUrl} alt="question" className="rounded-xl max-h-48 object-cover" />
+                  <div className="relative inline-block">
+                    <img src={q.imageUrl} alt="question" className="rounded-xl max-h-40 object-cover" />
                     <button onClick={() => updateQ('imageUrl', null)}
-                      className="absolute top-2 right-2 bg-black/60 rounded-full p-1 text-white/70 hover:text-white">
-                      <Trash2 size={14} />
+                      className="absolute top-2 right-2 bg-black/70 rounded-full p-1.5 text-white/70 hover:text-white transition-colors">
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 ) : (
-                  <label className="flex items-center gap-2 text-sm text-white/40 hover:text-white/70 cursor-pointer transition-colors w-fit">
-                    <Image size={16} />
-                    <span>Add image</span>
+                  <label className="inline-flex items-center gap-2 text-sm text-white/35 hover:text-white/60 cursor-pointer transition-colors border border-dashed border-white/15 hover:border-white/30 rounded-lg px-3 py-2">
+                    <Image size={14} /> Thêm ảnh (tùy chọn)
                     <input type="file" accept="image/*" className="hidden"
                       onChange={(e) => e.target.files[0] && uploadImage(e.target.files[0])} />
                   </label>
@@ -249,26 +295,26 @@ export default function QuizEditorPage() {
             </div>
 
             {/* Settings row */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="card">
-                <label className="flex items-center gap-2 text-sm text-white/50 mb-2">
-                  <Clock size={14} /> Time Limit
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white/4 border border-white/8 rounded-xl p-3">
+                <label className="flex items-center gap-1.5 text-xs text-white/45 mb-2 font-medium">
+                  <Clock size={12} /> Thời gian
                 </label>
                 <select value={q.timeLimit} onChange={(e) => updateQ('timeLimit', +e.target.value)}
-                  className="bg-white/10 border border-white/20 text-white text-sm rounded-lg px-3 py-2 w-full outline-none">
+                  className="select text-sm py-2">
                   {[5, 10, 20, 30, 45, 60, 90, 120].map((t) => (
-                    <option key={t} value={t}>{t}s</option>
+                    <option key={t} value={t}>{t} giây</option>
                   ))}
                 </select>
               </div>
-              <div className="card">
-                <label className="flex items-center gap-2 text-sm text-white/50 mb-2">
-                  <Star size={14} /> Points
+              <div className="bg-white/4 border border-white/8 rounded-xl p-3">
+                <label className="flex items-center gap-1.5 text-xs text-white/45 mb-2 font-medium">
+                  <Star size={12} /> Điểm
                 </label>
                 <select value={q.points} onChange={(e) => updateQ('points', +e.target.value)}
-                  className="bg-white/10 border border-white/20 text-white text-sm rounded-lg px-3 py-2 w-full outline-none">
+                  className="select text-sm py-2">
                   {[0, 500, 1000, 2000].map((p) => (
-                    <option key={p} value={p}>{p === 0 ? 'No points' : `${p} pts`}</option>
+                    <option key={p} value={p}>{p === 0 ? 'Không tính điểm' : `${p.toLocaleString()} điểm`}</option>
                   ))}
                 </select>
               </div>
@@ -276,32 +322,41 @@ export default function QuizEditorPage() {
 
             {/* Answer options */}
             <div className="card">
-              <p className="text-sm text-white/50 mb-3">Answer Options (click to mark correct)</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-medium text-white/60">Đáp án <span className="text-white/35 text-xs font-normal">(click vào ô để chọn đáp án đúng)</span></p>
+                <span className="text-xs text-green-400/70">
+                  ✓ {q.options.filter((o) => o.isCorrect).length} đúng
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {q.options.map((opt, oi) => (
                   <div
                     key={oi}
                     onClick={() => updateOption(oi, 'isCorrect', true)}
-                    className={`relative rounded-xl p-3 cursor-pointer border-2 transition-all ${
+                    className={`relative rounded-xl p-3 cursor-pointer transition-all border-l-4 ${
                       opt.isCorrect
-                        ? 'border-green-500 bg-green-500/10'
-                        : 'border-white/10 bg-white/5 hover:border-white/30'
+                        ? 'bg-green-500/10 border border-green-500/30 ring-1 ring-green-500/20'
+                        : 'bg-white/4 border border-white/8 hover:bg-white/8'
                     }`}
-                    style={{ borderLeftColor: COLORS[oi], borderLeftWidth: 4 }}
+                    style={{ borderLeftColor: COLORS[oi] }}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center"
-                        style={{ borderColor: COLORS[oi] }}>
-                        {opt.isCorrect && <div className="w-2 h-2 rounded-full" style={{ background: COLORS[oi] }} />}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                        opt.isCorrect ? 'border-green-400' : ''
+                      }`} style={{ borderColor: opt.isCorrect ? '#4ade80' : COLORS[oi] }}>
+                        {opt.isCorrect && <div className="w-2 h-2 rounded-full bg-green-400" />}
                       </div>
-                      <span className="text-xs text-white/50">{COLOR_LABELS[oi]}</span>
+                      <span className="text-xs font-semibold" style={{ color: COLORS[oi] }}>
+                        {['A', 'B', 'C', 'D'][oi]}
+                      </span>
+                      {opt.isCorrect && <span className="text-xs text-green-400 ml-auto">✓ Đúng</span>}
                     </div>
                     <input
                       value={opt.text}
                       onChange={(e) => { e.stopPropagation(); updateOption(oi, 'text', e.target.value) }}
                       onClick={(e) => e.stopPropagation()}
-                      placeholder={`Option ${oi + 1}`}
-                      className="bg-transparent outline-none w-full text-sm placeholder-white/30"
+                      placeholder={`Đáp án ${['A', 'B', 'C', 'D'][oi]}...`}
+                      className="bg-transparent outline-none w-full text-sm placeholder-white/25 text-white/85"
                     />
                   </div>
                 ))}
@@ -309,19 +364,25 @@ export default function QuizEditorPage() {
             </div>
 
             {/* Explanation */}
-            <div className="card">
-              <label className="block text-sm text-white/50 mb-2">Explanation (optional)</label>
+            <div className="bg-white/4 border border-white/8 rounded-xl p-4">
+              <label className="block text-xs font-medium text-white/45 mb-2 flex items-center gap-1.5">
+                💡 Giải thích <span className="text-white/25 font-normal">(hiển thị sau khi trả lời)</span>
+              </label>
               <textarea
                 value={q.explanation || ''}
                 onChange={(e) => updateQ('explanation', e.target.value)}
-                placeholder="Show after answer is revealed..."
+                placeholder="VD: Đáp án B vì..."
                 rows={2}
-                className="input resize-none text-sm"
+                className="input resize-none text-sm py-2.5"
               />
             </div>
           </div>
         </div>
       </div>
+
+      {showAI && (
+        <AIGeneratorModal onImport={handleAIImport} onClose={() => setShowAI(false)} />
+      )}
     </div>
   )
 }
