@@ -1,11 +1,13 @@
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router-dom'
 import { Zap } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
 import { register as apiRegister } from '../../api/auth.api'
 import useAuthStore from '../../store/useAuthStore'
 
 export default function RegisterPage() {
+  const { t } = useTranslation()
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm()
   const loginSuccess = useAuthStore((s) => s.loginSuccess)
   const navigate = useNavigate()
@@ -14,10 +16,10 @@ export default function RegisterPage() {
     try {
       const res = await apiRegister({ email: data.email, password: data.password, fullName: data.fullName })
       loginSuccess(res)
-      toast.success('Account created!')
+      toast.success(t('auth.signupSuccess', 'Account created!'))
       navigate('/dashboard')
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Registration failed')
+      toast.error(err.response?.data?.message || t('common.error'))
     }
   }
 
@@ -32,13 +34,13 @@ export default function RegisterPage() {
         </div>
 
         <div className="card">
-          <h1 className="text-2xl font-bold text-center mb-6">Create account</h1>
+          <h1 className="text-2xl font-bold text-center mb-6">{t('auth.signupHeader')}</h1>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="block text-sm text-white/60 mb-1">Full Name</label>
+              <label className="block text-sm text-white/60 mb-1">{t('auth.fullName')}</label>
               <input
-                {...register('fullName', { required: 'Name is required', maxLength: { value: 100, message: 'Max 100 chars' } })}
+                {...register('fullName', { required: t('auth.requiredName'), maxLength: { value: 100, message: 'Max 100 chars' } })}
                 placeholder="Your name"
                 className="input"
               />
@@ -46,9 +48,9 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-white/60 mb-1">Email</label>
+              <label className="block text-sm text-white/60 mb-1">{t('auth.email')}</label>
               <input
-                {...register('email', { required: 'Email is required' })}
+                {...register('email', { required: t('auth.requiredEmail') })}
                 type="email"
                 placeholder="you@example.com"
                 className="input"
@@ -57,9 +59,9 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-white/60 mb-1">Password</label>
+              <label className="block text-sm text-white/60 mb-1">{t('auth.password')}</label>
               <input
-                {...register('password', { required: 'Password is required', minLength: { value: 8, message: 'Min 8 characters' } })}
+                {...register('password', { required: t('auth.requiredPassword'), minLength: { value: 8, message: 'Min 8 characters' } })}
                 type="password"
                 placeholder="Min 8 characters"
                 className="input"
@@ -68,11 +70,11 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-white/60 mb-1">Confirm Password</label>
+              <label className="block text-sm text-white/60 mb-1">{t('auth.confirmPassword')}</label>
               <input
                 {...register('confirm', {
-                  required: 'Please confirm password',
-                  validate: (v) => v === watch('password') || 'Passwords do not match',
+                  required: t('auth.requiredConfirmPassword'),
+                  validate: (v) => v === watch('password') || t('auth.passwordMismatch'),
                 })}
                 type="password"
                 placeholder="••••••••"
@@ -82,13 +84,13 @@ export default function RegisterPage() {
             </div>
 
             <button type="submit" disabled={isSubmitting} className="btn-primary w-full mt-2">
-              {isSubmitting ? 'Creating account...' : 'Create Account'}
+              {isSubmitting ? t('auth.signingUp') : t('auth.signUpBtn')}
             </button>
           </form>
 
           <p className="text-center text-white/50 text-sm mt-4">
-            Already have an account?{' '}
-            <Link to="/login" className="text-violet-400 hover:underline">Sign in</Link>
+            {t('auth.alreadyHaveAccount')}{' '}
+            <Link to="/login" className="text-violet-400 hover:underline">{t('auth.logInLink')}</Link>
           </p>
         </div>
       </div>

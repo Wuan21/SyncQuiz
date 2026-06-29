@@ -1,17 +1,20 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Zap, LayoutDashboard, BookOpen, Compass, LogOut, Menu, X, TrendingUp, ClipboardList } from 'lucide-react'
+import { Zap, LayoutDashboard, BookOpen, Compass, LogOut, Menu, X, TrendingUp, ClipboardList, Users } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import useAuthStore from '../../store/useAuthStore'
 
 const navLinks = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/quizzes', label: 'Quizzes', icon: BookOpen },
-  { to: '/explore', label: 'Explore', icon: Compass },
-  { to: '/analytics', label: 'Analytics', icon: TrendingUp },
-  { to: '/homework', label: 'Homework', icon: ClipboardList },
+  { to: '/dashboard', key: 'dashboard', icon: LayoutDashboard },
+  { to: '/quizzes', key: 'quizzes', icon: BookOpen },
+  { to: '/explore', key: 'explore', icon: Compass },
+  { to: '/classrooms', key: 'classrooms', icon: Users },
+  { to: '/analytics', key: 'analytics', icon: TrendingUp },
+  { to: '/homework', key: 'homework', icon: ClipboardList },
 ]
 
 export default function Navbar() {
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const user = useAuthStore((s) => s.user)
   const logoutFn = useAuthStore((s) => s.logout)
@@ -20,6 +23,12 @@ export default function Navbar() {
   const handleLogout = async () => {
     await logoutFn()
     navigate('/login')
+  }
+
+  const toggleLanguage = () => {
+    const newLang = i18n.language === 'vi' ? 'en' : 'vi'
+    i18n.changeLanguage(newLang)
+    localStorage.setItem('lng', newLang)
   }
 
   return (
@@ -34,9 +43,9 @@ export default function Navbar() {
         </Link>
 
         {/* Desktop links */}
-          {user && (
+        {user && (
           <div className="hidden md:flex items-center gap-0.5">
-            {navLinks.map(({ to, label, icon: Icon }) => (
+            {navLinks.map(({ to, key, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -49,7 +58,7 @@ export default function Navbar() {
                 }
               >
                 <Icon size={15} />
-                {label}
+                {t(`nav.${key}`)}
               </NavLink>
             ))}
           </div>
@@ -57,10 +66,20 @@ export default function Navbar() {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
+          {/* Language Switcher */}
+          <button 
+            onClick={toggleLanguage} 
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/15 text-xs font-semibold text-white/70 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+            title={i18n.language === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
+          >
+            <span className="text-sm">🌐</span>
+            <span>{i18n.language === 'vi' ? 'VI' : 'EN'}</span>
+          </button>
+
           {user ? (
             <>
               <Link to="/join" className="hidden md:block btn-primary text-sm py-2">
-                Join Game
+                {t('nav.joinGame')}
               </Link>
               <div className="flex items-center gap-2">
                 <img
@@ -68,15 +87,15 @@ export default function Navbar() {
                   alt={user.fullName}
                   className="w-8 h-8 rounded-full bg-violet-700"
                 />
-                <button onClick={handleLogout} className="text-white/40 hover:text-white transition-colors" title="Logout">
+                <button onClick={handleLogout} className="text-white/40 hover:text-white transition-colors" title={t('nav.logout')}>
                   <LogOut size={18} />
                 </button>
               </div>
             </>
           ) : (
             <div className="flex items-center gap-2">
-              <Link to="/login" className="btn-secondary text-sm py-2 px-4">Log in</Link>
-              <Link to="/register" className="btn-primary text-sm py-2 px-4">Sign up</Link>
+              <Link to="/login" className="btn-secondary text-sm py-2 px-4">{t('nav.login')}</Link>
+              <Link to="/register" className="btn-primary text-sm py-2 px-4">{t('nav.signup')}</Link>
             </div>
           )}
 
@@ -90,7 +109,7 @@ export default function Navbar() {
       {/* Mobile menu */}
       {open && user && (
         <div className="md:hidden border-t border-white/10 bg-gray-950 px-4 py-3 flex flex-col gap-1">
-          {navLinks.map(({ to, label, icon: Icon }) => (
+          {navLinks.map(({ to, key, icon: Icon }) => (
             <NavLink key={to} to={to} onClick={() => setOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium ${
@@ -98,11 +117,11 @@ export default function Navbar() {
                 }`
               }
             >
-              <Icon size={16} /> {label}
+              <Icon size={16} /> {t(`nav.${key}`)}
             </NavLink>
           ))}
           <Link to="/join" onClick={() => setOpen(false)} className="btn-primary text-sm mt-2 text-center">
-            Join Game
+            {t('nav.joinGame')}
           </Link>
         </div>
       )}

@@ -86,3 +86,10 @@ export const importCSV = (quizId, file) => {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data)
 }
+
+// Classrooms
+export const getClassrooms = () => api.get('/classrooms').then((r) => r.data)
+export const createClassroom = (data) => api.post('/classrooms', data).then((r) => r.data)
+export const joinClassroom = (code) => api.post(`/classrooms/join/${code}`).then((r) => r.data)
+export const deleteClassroom = (id) => api.delete(`/classrooms/${id}`)
+export const getHomeworkDetails = (id) => api.get(`/homework/${id}`).then((r) => r.data)

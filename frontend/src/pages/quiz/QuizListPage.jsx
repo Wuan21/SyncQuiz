@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus, Search, Trash2, Copy, Edit, Play, BookOpen } from 'lucide-react'
+import { Plus, Search, Trash2, Copy, Edit, Play, BookOpen, ClipboardList } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getMyQuizzes, deleteQuiz, cloneQuiz } from '../../api/quizzes.api'
+import AssignHomeworkModal from '../../components/quiz/AssignHomeworkModal'
 
 export default function QuizListPage() {
   const [search, setSearch] = useState('')
+  const [assignQuiz, setAssignQuiz] = useState(null)
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -77,6 +79,9 @@ export default function QuizListPage() {
               <Link to={`/host/${quiz.id}`} className="btn-primary text-xs py-1.5 flex-1 flex items-center justify-center gap-1">
                 <Play size={12} /> Host
               </Link>
+              <button onClick={() => setAssignQuiz(quiz)} className="btn-secondary text-xs py-1.5 px-2.5" title="Giao bài tập">
+                <ClipboardList size={14} />
+              </button>
               <Link to={`/quizzes/${quiz.id}/edit`} className="btn-secondary text-xs py-1.5 px-2.5">
                 <Edit size={14} />
               </Link>
@@ -93,6 +98,14 @@ export default function QuizListPage() {
           </div>
         ))}
       </div>
+
+      {assignQuiz && (
+        <AssignHomeworkModal
+          quizId={assignQuiz.id}
+          quizTitle={assignQuiz.title}
+          onClose={() => setAssignQuiz(null)}
+        />
+      )}
     </div>
   )
 }

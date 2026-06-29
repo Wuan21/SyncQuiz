@@ -16,6 +16,9 @@ const uploadRoutes = require('./routes/upload.routes');
 const sessionRoutes = require('./routes/sessions.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const classroomRoutes = require('./routes/classrooms.routes');
+const aiRoutes = require('./routes/ai.routes');
+const homeworkRoutes = require('./routes/homework.routes');
+const achievementRoutes = require('./routes/achievements.routes');
 const { errorHandler, notFound } = require('./middleware/error.middleware');
 
 const app = express();
@@ -67,6 +70,9 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/classrooms', classroomRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/homework', homeworkRoutes);
+app.use('/api/achievements', achievementRoutes);
 
 // ── Error handling ────────────────────────────────────────────────────────────
 app.use(notFound);

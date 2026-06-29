@@ -1,18 +1,20 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Sparkles, X, Loader, CheckCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
 import { generateAIQuiz } from '../../api/advanced.api'
 
 const COUNTS = [3, 5, 8, 10, 15, 20]
 const DIFFICULTIES = [
-  { value: 'easy', label: 'Easy', desc: 'Dễ - kiến thức cơ bản', color: 'text-green-400' },
-  { value: 'medium', label: 'Medium', desc: 'Trung bình', color: 'text-yellow-400' },
-  { value: 'hard', label: 'Hard', desc: 'Khó - cần hiểu sâu', color: 'text-red-400' },
+  { value: 'easy', color: 'text-green-400' },
+  { value: 'medium', color: 'text-yellow-400' },
+  { value: 'hard', color: 'text-red-400' },
 ]
 const LANGUAGES = ['Vietnamese', 'English', 'Bilingual (Vi + En)']
 
 export default function AIGeneratorModal({ onImport, onClose }) {
+  const { t } = useTranslation()
   const [form, setForm] = useState({ topic: '', count: 5, difficulty: 'medium', language: 'Vietnamese' })
   const [preview, setPreview] = useState(null)
 
@@ -20,10 +22,10 @@ export default function AIGeneratorModal({ onImport, onClose }) {
     mutationFn: generateAIQuiz,
     onSuccess: (data) => {
       setPreview(data.questions)
-      toast.success(`Tạo thành công ${data.questions.length} câu hỏi!`)
+      toast.success(t('aiGenerator.successToast', { count: data.questions.length }))
     },
     onError: (err) => {
-      const message = err.message || err.response?.data?.message || 'Lỗi tạo câu hỏi'
+      const message = err.message || err.response?.data?.message || t('aiGenerator.errorToast')
       toast.error(message)
     },
   })
@@ -42,8 +44,8 @@ export default function AIGeneratorModal({ onImport, onClose }) {
               <Sparkles size={20} className="text-violet-400" />
             </div>
             <div>
-              <h2 className="font-bold text-lg leading-tight">AI Quiz Generator</h2>
-              <p className="text-white/40 text-xs">Powered by Google Gemini</p>
+              <h2 className="font-bold text-lg leading-tight">{t('aiGenerator.title')}</h2>
+              <p className="text-white/40 text-xs">{t('aiGenerator.subTitle')}</p>
             </div>
           </div>
           <button onClick={onClose}
@@ -58,13 +60,13 @@ export default function AIGeneratorModal({ onImport, onClose }) {
               {/* Topic */}
               <div>
                 <label className="block text-sm font-medium text-white/70 mb-2">
-                  Chủ đề / Topic <span className="text-red-400">*</span>
+                  {t('aiGenerator.topicLabel')} <span className="text-red-400">*</span>
                 </label>
                 <input
                   value={form.topic}
                   onChange={(e) => set('topic', e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && form.topic.trim() && mutation.mutate(form)}
-                  placeholder="VD: Lịch sử Việt Nam, Python basics, Solar system..."
+                  placeholder={t('aiGenerator.topicPlaceholder')}
                   className="input text-base"
                   autoFocus
                 />
@@ -72,7 +74,7 @@ export default function AIGeneratorModal({ onImport, onClose }) {
 
               {/* Count */}
               <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">Số câu hỏi</label>
+                <label className="block text-sm font-medium text-white/70 mb-2">{t('aiGenerator.countLabel')}</label>
                 <div className="flex gap-2 flex-wrap">
                   {COUNTS.map((n) => (
                     <button
@@ -93,7 +95,7 @@ export default function AIGeneratorModal({ onImport, onClose }) {
 
               {/* Difficulty */}
               <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">Độ khó</label>
+                <label className="block text-sm font-medium text-white/70 mb-2">{t('aiGenerator.difficultyLabel')}</label>
                 <div className="grid grid-cols-3 gap-2">
                   {DIFFICULTIES.map((d) => (
                     <button
@@ -106,8 +108,8 @@ export default function AIGeneratorModal({ onImport, onClose }) {
                           : 'border-white/10 bg-white/5 hover:border-white/25'
                       }`}
                     >
-                      <p className={`font-semibold text-sm ${d.color}`}>{d.label}</p>
-                      <p className="text-white/40 text-xs mt-0.5">{d.desc}</p>
+                      <p className={`font-semibold text-sm ${d.color}`}>{t(`aiGenerator.${d.value}`)}</p>
+                      <p className="text-white/40 text-xs mt-0.5">{t(`aiGenerator.${d.value}Desc`)}</p>
                     </button>
                   ))}
                 </div>
@@ -115,14 +117,18 @@ export default function AIGeneratorModal({ onImport, onClose }) {
 
               {/* Language */}
               <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">Ngôn ngữ</label>
+                <label className="block text-sm font-medium text-white/70 mb-2">{t('aiGenerator.languageLabel')}</label>
                 <select
                   value={form.language}
                   onChange={(e) => set('language', e.target.value)}
                   className="select"
                 >
                   {LANGUAGES.map((l) => (
-                    <option key={l} value={l}>{l}</option>
+                    <option key={l} value={l}>
+                      {l === 'Vietnamese' ? t('aiGenerator.langVietnamese') :
+                       l === 'English' ? t('aiGenerator.langEnglish') :
+                       t('aiGenerator.langBilingual')}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -131,10 +137,14 @@ export default function AIGeneratorModal({ onImport, onClose }) {
               <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
                 <Sparkles size={16} className="text-violet-400 shrink-0" />
                 <span className="text-white/70">
-                  Sẽ tạo <span className="text-white font-semibold">{form.count} câu</span> về{' '}
+                  {t('aiGenerator.summaryPrefix')} <span className="text-white font-semibold">{t('aiGenerator.summaryQuestions', { count: form.count })}</span> {t('aiGenerator.summaryTopic')}{' '}
                   <span className="text-white font-semibold">"{form.topic || '...'}"</span>,{' '}
-                  độ khó <span className={`font-semibold ${selectedDiff?.color}`}>{selectedDiff?.label}</span>,{' '}
-                  ngôn ngữ <span className="text-white font-semibold">{form.language}</span>
+                  {t('aiGenerator.summaryDifficulty')} <span className={`font-semibold ${selectedDiff?.color}`}>{t(`aiGenerator.${form.difficulty}`)}</span>,{' '}
+                  {t('aiGenerator.summaryLanguage')}: <span className="text-white font-semibold">
+                    {form.language === 'Vietnamese' ? t('aiGenerator.langVietnamese') :
+                     form.language === 'English' ? t('aiGenerator.langEnglish') :
+                     t('aiGenerator.langBilingual')}
+                  </span>
                 </span>
               </div>
 
@@ -144,16 +154,16 @@ export default function AIGeneratorModal({ onImport, onClose }) {
                 className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2"
               >
                 {mutation.isPending
-                  ? <><Loader size={18} className="animate-spin" /> Đang tạo câu hỏi...</>
-                  : <><Sparkles size={18} /> Tạo {form.count} câu hỏi với AI</>
+                  ? <><Loader size={18} className="animate-spin" /> {t('aiGenerator.generating')}</>
+                  : <><Sparkles size={18} /> {t('aiGenerator.generateBtn', { count: form.count })}</>
                 }
               </button>
 
               <p className="text-center text-white/25 text-xs">
-                Miễn phí •{' '}
+                {t('aiGenerator.free')} •{' '}
                 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
                   className="text-violet-400/60 hover:text-violet-400 underline transition-colors">
-                  Lấy Gemini API key
+                  {t('aiGenerator.getApiKey')}
                 </a>
               </p>
             </div>
@@ -162,8 +172,8 @@ export default function AIGeneratorModal({ onImport, onClose }) {
               {/* Preview header */}
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold">Xem trước {preview.length} câu hỏi</p>
-                  <p className="text-white/40 text-sm mt-0.5">Chủ đề: {form.topic}</p>
+                  <p className="font-semibold">{t('aiGenerator.previewTitle', { count: preview.length })}</p>
+                  <p className="text-white/40 text-sm mt-0.5">{t('aiGenerator.previewTopic')}: {form.topic}</p>
                 </div>
                 <span className="badge bg-green-500/20 text-green-400 border border-green-500/20">
                   <CheckCircle size={12} /> AI Generated
@@ -204,14 +214,14 @@ export default function AIGeneratorModal({ onImport, onClose }) {
                   onClick={() => { setPreview(null); mutation.reset() }}
                   className="btn-secondary flex-1"
                 >
-                  ↺ Tạo lại
+                  ↺ {t('aiGenerator.regenerateBtn')}
                 </button>
                 <button
                   onClick={() => { onImport(preview); onClose() }}
                   className="btn-primary flex-1 flex items-center justify-center gap-2"
                 >
                   <CheckCircle size={16} />
-                  Thêm vào quiz
+                  {t('aiGenerator.importBtn', { count: preview.length })}
                 </button>
               </div>
             </div>
@@ -221,4 +231,3 @@ export default function AIGeneratorModal({ onImport, onClose }) {
     </div>
   )
 }
-

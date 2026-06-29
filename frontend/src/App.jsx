@@ -18,6 +18,8 @@ import ResultsPage from './pages/game/ResultsPage'
 import ExplorePage from './pages/ExplorePage'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import HomeworkPage from './pages/homework/HomeworkPage'
+import ClassroomListPage from './pages/classroom/ClassroomListPage'
+import TakeHomeworkPage from './pages/homework/TakeHomeworkPage'
 
 export default function App() {
   const loadUser = useAuthStore((s) => s.loadUser)
@@ -35,6 +37,11 @@ export default function App() {
         <Route path="/join" element={<PlayerJoinPage />} />
         <Route path="/join/:pin" element={<PlayerJoinPage />} />
         <Route path="/play/:pin" element={<PlayerGamePage />} />
+        
+        {/* Full-screen protected routes (no navbar) */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/homework/:id/take" element={<TakeHomeworkPage />} />
+        </Route>
 
         <Route element={<Layout />}>
           <Route path="/explore" element={<ExplorePage />} />
@@ -49,6 +56,7 @@ export default function App() {
             <Route path="/results/:sessionId" element={<ResultsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/homework" element={<HomeworkPage />} />
+            <Route path="/classrooms" element={<ClassroomListPage />} />
           </Route>
         </Route>
 

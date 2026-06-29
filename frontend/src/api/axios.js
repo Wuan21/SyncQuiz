@@ -12,10 +12,27 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+const mapIds = (obj) => {
+  if (!obj || typeof obj !== 'object') return obj
+  if (Array.isArray(obj)) return obj.map(mapIds)
+  if (obj._id && !obj.id) {
+    obj.id = obj._id
+  }
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      obj[key] = mapIds(obj[key])
+    }
+  }
+  return obj
+}
+
 // Auto-refresh on 401
 let refreshing = null
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    res.data = mapIds(res.data)
+    return res
+  },
   async (err) => {
     const original = err.config
     if (err.response?.status === 401 && !original._retry) {

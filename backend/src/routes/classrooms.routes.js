@@ -7,10 +7,15 @@ const genCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
 router.get('/', authenticate, async (req, res, next) => {
   try {
-    const classrooms = await Classroom.find({ teacherId: req.user.id })
-      .populate('students', 'fullName email avatarUrl')
-      .lean();
-    res.json(classrooms);
+    const [taught, joined] = await Promise.all([
+      Classroom.find({ teacherId: req.user.id })
+        .populate('students', 'fullName email avatarUrl')
+        .lean(),
+      Classroom.find({ students: req.user.id, isActive: true })
+        .populate('teacherId', 'fullName email avatarUrl')
+        .lean(),
+    ]);
+    res.json({ taught, joined });
   } catch (err) { next(err); }
 });
 

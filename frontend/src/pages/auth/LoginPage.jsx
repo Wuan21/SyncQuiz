@@ -1,11 +1,13 @@
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router-dom'
 import { Zap } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
 import { login } from '../../api/auth.api'
 import useAuthStore from '../../store/useAuthStore'
 
 export default function LoginPage() {
+  const { t } = useTranslation()
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm()
   const loginSuccess = useAuthStore((s) => s.loginSuccess)
   const navigate = useNavigate()
@@ -16,7 +18,7 @@ export default function LoginPage() {
       loginSuccess(res)
       navigate('/dashboard')
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Login failed')
+      toast.error(err.response?.data?.message || t('common.error'))
     }
   }
 
@@ -32,13 +34,13 @@ export default function LoginPage() {
         </div>
 
         <div className="card">
-          <h1 className="text-2xl font-bold text-center mb-6">Welcome back</h1>
+          <h1 className="text-2xl font-bold text-center mb-6">{t('auth.loginHeader')}</h1>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="block text-sm text-white/60 mb-1">Email</label>
+              <label className="block text-sm text-white/60 mb-1">{t('auth.email')}</label>
               <input
-                {...register('email', { required: 'Email is required' })}
+                {...register('email', { required: t('auth.requiredEmail') })}
                 type="email"
                 placeholder="you@example.com"
                 className="input"
@@ -47,9 +49,9 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-white/60 mb-1">Password</label>
+              <label className="block text-sm text-white/60 mb-1">{t('auth.password')}</label>
               <input
-                {...register('password', { required: 'Password is required' })}
+                {...register('password', { required: t('auth.requiredPassword') })}
                 type="password"
                 placeholder="••••••••"
                 className="input"
@@ -58,13 +60,13 @@ export default function LoginPage() {
             </div>
 
             <button type="submit" disabled={isSubmitting} className="btn-primary w-full mt-2">
-              {isSubmitting ? 'Signing in...' : 'Sign In'}
+              {isSubmitting ? t('auth.signingIn') : t('auth.signInBtn')}
             </button>
           </form>
 
           <p className="text-center text-white/50 text-sm mt-4">
-            No account?{' '}
-            <Link to="/register" className="text-violet-400 hover:underline">Sign up free</Link>
+            {t('auth.noAccount')}{' '}
+            <Link to="/register" className="text-violet-400 hover:underline">{t('auth.signUpFree')}</Link>
           </p>
         </div>
       </div>

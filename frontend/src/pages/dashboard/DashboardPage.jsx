@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Zap, BookOpen, Users, Trophy, Plus, Play } from 'lucide-react'
+import { Zap, BookOpen, Users, Plus, Play } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getAnalytics } from '../../api/game.api'
 import { getMyQuizzes } from '../../api/quizzes.api'
 import useAuthStore from '../../store/useAuthStore'
@@ -20,6 +21,7 @@ function StatCard({ icon: Icon, label, value, color }) {
 }
 
 export default function DashboardPage() {
+  const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   const { data: analytics } = useQuery({ queryKey: ['analytics'], queryFn: getAnalytics })
   const { data: myQuizzes } = useQuery({ queryKey: ['quizzes', 'my'], queryFn: () => getMyQuizzes({ limit: 6 }) })
@@ -29,16 +31,16 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold">
-          Welcome back, <span className="text-violet-400">{user?.fullName?.split(' ')[0]}</span> 👋
+          {t('dashboard.welcome')} <span className="text-violet-400">{user?.fullName?.split(' ')[0]}</span> 👋
         </h1>
-        <p className="text-white/50 mt-1">Ready to quiz the world?</p>
+        <p className="text-white/50 mt-1">{t('dashboard.subTitle')}</p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <StatCard icon={BookOpen} label="Quizzes Created" value={analytics?.quizCount} color="bg-violet-600" />
-        <StatCard icon={Zap} label="Games Hosted" value={analytics?.totalSessions} color="bg-pink-600" />
-        <StatCard icon={Users} label="Avg Players" value={analytics?.avgPlayers} color="bg-blue-600" />
+        <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value={analytics?.quizCount} color="bg-violet-600" />
+        <StatCard icon={Zap} label={t('dashboard.gamesHosted', 'Games Hosted')} value={analytics?.totalSessions} color="bg-pink-600" />
+        <StatCard icon={Users} label={t('dashboard.avgPlayers', 'Avg Players')} value={analytics?.avgPlayers} color="bg-blue-600" />
       </div>
 
       {/* Quick actions */}
@@ -49,8 +51,8 @@ export default function DashboardPage() {
             <Plus size={28} className="text-violet-400" />
           </div>
           <div>
-            <p className="font-semibold text-lg">Create Quiz</p>
-            <p className="text-white/50 text-sm">Build a new quiz from scratch</p>
+            <p className="font-semibold text-lg">{t('dashboard.createQuizBtn')}</p>
+            <p className="text-white/50 text-sm">{t('dashboard.createQuizDesc', 'Build a new quiz from scratch')}</p>
           </div>
         </Link>
 
@@ -60,8 +62,8 @@ export default function DashboardPage() {
             <Play size={28} className="text-pink-400" />
           </div>
           <div>
-            <p className="font-semibold text-lg">Join Game</p>
-            <p className="text-white/50 text-sm">Enter a PIN to join a live quiz</p>
+            <p className="font-semibold text-lg">{t('nav.joinGame')}</p>
+            <p className="text-white/50 text-sm">{t('dashboard.joinGameDesc', 'Enter a PIN to join a live quiz')}</p>
           </div>
         </Link>
       </div>
@@ -69,15 +71,15 @@ export default function DashboardPage() {
       {/* My Quizzes */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">My Quizzes</h2>
-          <Link to="/quizzes" className="text-violet-400 text-sm hover:underline">View all →</Link>
+          <h2 className="text-xl font-bold">{t('dashboard.myQuizzes', 'My Quizzes')}</h2>
+          <Link to="/quizzes" className="text-violet-400 text-sm hover:underline">{t('dashboard.viewAll', 'View all →')}</Link>
         </div>
 
         {myQuizzes?.quizzes?.length === 0 ? (
           <div className="card text-center py-12">
             <BookOpen size={40} className="mx-auto text-white/20 mb-3" />
-            <p className="text-white/50">No quizzes yet.</p>
-            <Link to="/quizzes/new" className="btn-primary inline-block mt-4 text-sm">Create your first quiz</Link>
+            <p className="text-white/50">{t('dashboard.noQuizzesYet')}</p>
+            <Link to="/quizzes/new" className="btn-primary inline-block mt-4 text-sm">{t('dashboard.createFirstQuiz', 'Create your first quiz')}</Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -92,6 +94,7 @@ export default function DashboardPage() {
 }
 
 function QuizCard({ quiz }) {
+  const { t } = useTranslation()
   return (
     <div className="card hover:border-white/30 transition-colors">
       <div className="h-32 bg-gradient-to-br from-violet-600/30 to-pink-600/30 rounded-xl mb-3 flex items-center justify-center overflow-hidden">
@@ -101,10 +104,10 @@ function QuizCard({ quiz }) {
         }
       </div>
       <h3 className="font-semibold truncate">{quiz.title}</h3>
-      <p className="text-white/40 text-sm mt-1">{quiz.questionCount} questions</p>
+      <p className="text-white/40 text-sm mt-1">{quiz.questionCount} {t('dashboard.questionsCount', 'questions')}</p>
       <div className="flex gap-2 mt-3">
-        <Link to={`/quizzes/${quiz.id}/edit`} className="btn-secondary text-xs py-1.5 flex-1 text-center">Edit</Link>
-        <Link to={`/host/${quiz.id}`} className="btn-primary text-xs py-1.5 flex-1 text-center">Host</Link>
+        <Link to={`/quizzes/${quiz.id}/edit`} className="btn-secondary text-xs py-1.5 flex-1 text-center">{t('common.edit', 'Edit')}</Link>
+        <Link to={`/host/${quiz.id}`} className="btn-primary text-xs py-1.5 flex-1 text-center">{t('dashboard.host', 'Host')}</Link>
       </div>
     </div>
   )

@@ -42,11 +42,16 @@ export default function HostGamePage() {
       setPhase('ended')
     })
 
+    socket.on('game:extra_time', ({ seconds }) => {
+      setTimeLeft((prev) => prev + seconds)
+    })
+
     return () => {
       socket.off('host:question')
       socket.off('host:answer_count')
       socket.off('game:question_end')
       socket.off('game:ended')
+      socket.off('game:extra_time')
     }
   }, [socket])
 

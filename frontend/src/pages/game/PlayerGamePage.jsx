@@ -62,13 +62,17 @@ export default function PlayerGamePage() {
       setPhase('ended')
     })
 
+    socket.on('game:extra_time', ({ seconds }) => {
+      setTimeLeft((prev) => prev + seconds)
+    })
+
     socket.on('game:host_left', () => {
       alert('Host has left the game')
       navigate('/')
     })
 
     return () => {
-      ;['game:started', 'game:question', 'player:answer_ack', 'game:question_end', 'game:ended', 'game:host_left']
+      ;['game:started', 'game:question', 'player:answer_ack', 'game:question_end', 'game:ended', 'game:host_left', 'game:extra_time']
         .forEach((e) => socket.off(e))
     }
   }, [socket]) // eslint-disable-line

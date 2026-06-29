@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Save, ArrowLeft, Trash2, Image, Clock, Star, ChevronUp, ChevronDown, Sparkles, Upload } from 'lucide-react'
+import { Plus, Save, ArrowLeft, Trash2, Image, Clock, Star, ChevronUp, ChevronDown, Sparkles, Upload, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
   getQuizFull, createQuiz, updateQuiz,
@@ -195,6 +195,11 @@ export default function QuizEditorPage() {
           <button onClick={() => setShowAI(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/35 border border-violet-500/30 text-violet-300 text-sm font-medium transition-all">
             <Sparkles size={14} /> AI
+          </button>
+          <button onClick={downloadCSVTemplate}
+            title="Tải tệp CSV mẫu"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 border border-white/10 text-white/60 hover:text-white text-sm font-medium transition-all">
+            <Download size={14} /> Mẫu CSV
           </button>
           <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 border border-white/10 text-white/60 hover:text-white text-sm font-medium transition-all cursor-pointer">
             <Upload size={14} /> CSV
