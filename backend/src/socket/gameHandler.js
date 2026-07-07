@@ -1,8 +1,8 @@
 const { Server } = require('socket.io');
-const jwt = require('jsonwebtoken');
 const GameSession = require('../models/GameSession');
 const Question = require('../models/Question');
 const Achievement = require('../models/Achievement');
+const { verifyAccessToken } = require('../lib/cognito-auth');
 
 // In-memory store for active games (PIN → game state)
 const activeGames = new Map();
@@ -32,11 +32,17 @@ const initSocket = (server) => {
   });
 
   // ── Auth middleware (optional — hosts must be authenticated) ────────────────
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (token) {
       try {
-        socket.user = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+        const { payload, user } = await verifyAccessToken(token);
+        socket.user = {
+          sub: payload.sub,
+          email: user.email,
+          role: user.role,
+          id: user._id.toString(),
+        };
       } catch (_) {}
     }
     next();

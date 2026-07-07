@@ -2,6 +2,7 @@
 
 const userSchema = new mongoose.Schema(
   {
+    cognitoSub: { type: String, unique: true, sparse: true, trim: true },
     email: {
       type: String,
       required: true,
@@ -10,7 +11,7 @@ const userSchema = new mongoose.Schema(
       trim: true,
       match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
     },
-    passwordHash: { type: String, required: true, select: false },
+    passwordHash: { type: String, default: null, select: false },
     fullName: { type: String, required: true, trim: true, maxlength: 100 },
     avatarUrl: { type: String, default: null },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },

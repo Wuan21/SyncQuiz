@@ -23,10 +23,15 @@ exports.updateProfile = async (req, res, next) => {
 
 exports.changePassword = async (req, res, next) => {
   try {
-    const { currentPassword, newPassword } = req.body;
     const user = await User.findById(req.user.id).select('+passwordHash');
     if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user.passwordHash) {
+      return res.status(400).json({
+        message: 'Password changes are managed by AWS Cognito for this account.',
+      });
+    }
 
+    const { currentPassword, newPassword } = req.body;
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!valid) return res.status(400).json({ message: 'Current password is incorrect' });
 

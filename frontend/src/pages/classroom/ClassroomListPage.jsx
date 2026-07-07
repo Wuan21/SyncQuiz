@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { Plus, UserPlus, Users, Trash2, X, Clipboard, Check, Calendar, ArrowRight, User } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -172,7 +173,7 @@ export default function ClassroomListPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-col items-end gap-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5 bg-gray-900 border border-white/10 rounded-lg px-2.5 py-1.5 font-mono">
                         <span className="text-white/40 text-xs uppercase tracking-wider mr-1">PIN:</span>
                         <span className="text-violet-400 font-bold tracking-wider">{cls.code}</span>
@@ -183,6 +184,13 @@ export default function ClassroomListPage() {
                           {copiedCode === cls.code ? <Check size={14} className="text-green-400" /> : <Clipboard size={14} />}
                         </button>
                       </div>
+
+                      <Link
+                        to={`/classrooms/${cls.id}/gradebook`}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-violet-600/15 text-violet-300 border border-violet-500/20 hover:bg-violet-600/25 transition-all"
+                      >
+                        Xem bảng điểm
+                      </Link>
 
                       <button
                         onClick={() => handleDelete(cls.id)}

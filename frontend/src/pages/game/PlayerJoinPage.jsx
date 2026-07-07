@@ -22,11 +22,11 @@ export default function PlayerJoinPage() {
       const session = await getSessionByPin(pin)
       if (session.status !== 'waiting') return toast.error('Game already started or ended')
 
-      connect()
+      const activeSocket = (await connect()) || socket
       setTimeout(() => {
-        socket?.emit('player:join', { pin, nickname: nickname.trim(), avatarIndex: avatarIdx, teamName: teamName?.trim() || null })
-        socket?.once('player:joined', () => navigate(`/play/${pin}?nickname=${encodeURIComponent(nickname)}`))
-        socket?.once('error', ({ message }) => toast.error(message))
+        activeSocket?.emit('player:join', { pin, nickname: nickname.trim(), avatarIndex: avatarIdx, teamName: teamName?.trim() || null })
+        activeSocket?.once('player:joined', () => navigate(`/play/${pin}?nickname=${encodeURIComponent(nickname)}`))
+        activeSocket?.once('error', ({ message }) => toast.error(message))
       }, 300)
     } catch {
       toast.error('Game not found — check the PIN')

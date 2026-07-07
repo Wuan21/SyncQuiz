@@ -1,5 +1,4 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { verifyAccessToken } = require('../lib/cognito-auth');
 
 const authenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -9,8 +8,14 @@ const authenticate = async (req, res, next) => {
 
   const token = authHeader.slice(7);
   try {
-    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-    req.user = { id: payload.sub, email: payload.email, role: payload.role };
+    const { payload, user } = await verifyAccessToken(token);
+    req.user = {
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      cognitoSub: payload.sub,
+      claims: payload,
+    };
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Invalid or expired token' });
@@ -29,8 +34,14 @@ const optionalAuth = async (req, _res, next) => {
   if (!authHeader?.startsWith('Bearer ')) return next();
   try {
     const token = authHeader.slice(7);
-    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-    req.user = { id: payload.sub, email: payload.email, role: payload.role };
+    const { payload, user } = await verifyAccessToken(token);
+    req.user = {
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      cognitoSub: payload.sub,
+      claims: payload,
+    };
   } catch (_) {
     // silently fail — route will handle unauthenticated state
   }

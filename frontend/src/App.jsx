@@ -7,6 +7,7 @@ import ProtectedRoute from './components/layout/ProtectedRoute'
 
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
+import ConfirmSignUpPage from './pages/auth/ConfirmSignUpPage'
 import DashboardPage from './pages/dashboard/DashboardPage'
 import QuizListPage from './pages/quiz/QuizListPage'
 import QuizEditorPage from './pages/quiz/QuizEditorPage'
@@ -19,14 +20,14 @@ import ExplorePage from './pages/ExplorePage'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import HomeworkPage from './pages/homework/HomeworkPage'
 import ClassroomListPage from './pages/classroom/ClassroomListPage'
+import GradebookPage from './pages/classroom/GradebookPage'
 import TakeHomeworkPage from './pages/homework/TakeHomeworkPage'
 
 export default function App() {
   const loadUser = useAuthStore((s) => s.loadUser)
-  const accessToken = useAuthStore((s) => s.accessToken)
 
   useEffect(() => {
-    if (accessToken) loadUser()
+    loadUser()
   }, []) // eslint-disable-line
 
   return (
@@ -34,6 +35,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/confirm-signup" element={<ConfirmSignUpPage />} />
         <Route path="/join" element={<PlayerJoinPage />} />
         <Route path="/join/:pin" element={<PlayerJoinPage />} />
         <Route path="/play/:pin" element={<PlayerGamePage />} />
@@ -57,6 +59,7 @@ export default function App() {
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/homework" element={<HomeworkPage />} />
             <Route path="/classrooms" element={<ClassroomListPage />} />
+            <Route path="/classrooms/:id/gradebook" element={<GradebookPage />} />
           </Route>
         </Route>
 

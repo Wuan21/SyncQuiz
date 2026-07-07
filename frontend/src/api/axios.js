@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getIdToken, logoutFromCognito } from '../lib/cognito'
 
 const api = axios.create({
   baseURL: '/api',
@@ -6,8 +7,8 @@ const api = axios.create({
 })
 
 // Attach access token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken')
+api.interceptors.request.use(async (config) => {
+  const token = await getIdToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
@@ -26,7 +27,7 @@ const mapIds = (obj) => {
   return obj
 }
 
-// Auto-refresh on 401
+// Auto-refresh on 401 via Cognito session refresh
 let refreshing = null
 api.interceptors.response.use(
   (res) => {
@@ -35,20 +36,21 @@ api.interceptors.response.use(
   },
   async (err) => {
     const original = err.config
-    if (err.response?.status === 401 && !original._retry) {
+    const isAuthRoute = original?.url?.includes('/auth/')
+    if (err.response?.status === 401 && !original?._retry && !isAuthRoute) {
       original._retry = true
       if (!refreshing) {
-        refreshing = api
-          .post('/auth/refresh', { refreshToken: localStorage.getItem('refreshToken') })
-          .then(({ data }) => {
-            localStorage.setItem('accessToken', data.accessToken)
-            localStorage.setItem('refreshToken', data.refreshToken)
+        refreshing = getAccessToken({ forceRefresh: true })
+          .then(() => getIdToken())
+          .then(() => {
             refreshing = null
           })
-          .catch(() => {
-            localStorage.clear()
-            window.location.href = '/login'
+          .catch(async () => {
             refreshing = null
+            try {
+              await logoutFromCognito()
+            } catch {}
+            window.location.href = '/login'
           })
       }
       await refreshing

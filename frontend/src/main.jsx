@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast'
 import './index.css'
 import './i18n'
 import App from './App.jsx'
+import './lib/cognito'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },

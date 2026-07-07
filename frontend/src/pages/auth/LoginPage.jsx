@@ -3,22 +3,26 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
-import { login } from '../../api/auth.api'
 import useAuthStore from '../../store/useAuthStore'
 
 export default function LoginPage() {
   const { t } = useTranslation()
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm()
-  const loginSuccess = useAuthStore((s) => s.loginSuccess)
+  const login = useAuthStore((s) => s.login)
   const navigate = useNavigate()
 
   const onSubmit = async (data) => {
     try {
-      const res = await login(data)
-      loginSuccess(res)
+      await login(data)
       navigate('/dashboard')
     } catch (err) {
-      toast.error(err.response?.data?.message || t('common.error'))
+      const message = err.message || err.response?.data?.message || t('common.error')
+      if (message.includes('UserNotConfirmedException')) {
+        toast.error('Tai khoan chua duoc xac nhan. Vui long nhap ma xac nhan.')
+        navigate('/confirm-signup', { state: { email: data.email, password: data.password } })
+        return
+      }
+      toast.error(message)
     }
   }
 
