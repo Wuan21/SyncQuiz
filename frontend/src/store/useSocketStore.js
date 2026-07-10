@@ -7,7 +7,7 @@ const useSocketStore = create((set, get) => ({
 
   connect: () => {
     if (get().socket?.connected) return
-    const socket = io('/', {
+    const socket = io(import.meta.env.VITE_SOCKET_URL || '/', {
       auth: { token: localStorage.getItem('accessToken') },
       transports: ['websocket'],
     })

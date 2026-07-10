@@ -92,3 +92,15 @@ exports.me = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.sync = async (req, res, next) => {
+  try {
+    // req.user is populated by authenticate middleware (which already created/found the user in DB)
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    next(err);
+  }
+};
+

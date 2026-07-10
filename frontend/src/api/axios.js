@@ -1,14 +1,30 @@
 import axios from 'axios'
+import { fetchAuthSession } from 'aws-amplify/auth'
+
+const isCognitoEnabled = !!(import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID && import.meta.env.VITE_AWS_COGNITO_CLIENT_ID)
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   withCredentials: true,
 })
 
 // Attach access token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken')
-  if (token) config.headers.Authorization = `Bearer ${token}`
+api.interceptors.request.use(async (config) => {
+  if (isCognitoEnabled) {
+    try {
+      const session = await fetchAuthSession()
+      const token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+        localStorage.setItem('accessToken', token)
+      }
+    } catch (_) {
+      // fail silently, request will proceed without header
+    }
+  } else {
+    const token = localStorage.getItem('accessToken')
+    if (token) config.headers.Authorization = `Bearer ${token}`
+  }
   return config
 })
 
@@ -36,6 +52,12 @@ api.interceptors.response.use(
   async (err) => {
     const original = err.config
     if (err.response?.status === 401 && !original._retry) {
+      if (isCognitoEnabled) {
+        localStorage.clear()
+        window.location.href = '/login'
+        return Promise.reject(err)
+      }
+
       original._retry = true
       if (!refreshing) {
         refreshing = api

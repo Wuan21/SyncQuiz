@@ -1,4 +1,4 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(
   {
@@ -10,7 +10,8 @@ const userSchema = new mongoose.Schema(
       trim: true,
       match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
     },
-    passwordHash: { type: String, required: true, select: false },
+    passwordHash: { type: String, select: false, default: null },
+    cognitoId: { type: String, unique: true, sparse: true },
     fullName: { type: String, required: true, trim: true, maxlength: 100 },
     avatarUrl: { type: String, default: null },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },

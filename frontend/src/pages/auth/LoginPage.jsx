@@ -3,8 +3,11 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
-import { login } from '../../api/auth.api'
+import { login, syncUser } from '../../api/auth.api'
 import useAuthStore from '../../store/useAuthStore'
+import { signIn, fetchAuthSession } from 'aws-amplify/auth'
+
+const isCognitoEnabled = !!(import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID && import.meta.env.VITE_AWS_COGNITO_CLIENT_ID)
 
 export default function LoginPage() {
   const { t } = useTranslation()
@@ -14,13 +17,25 @@ export default function LoginPage() {
 
   const onSubmit = async (data) => {
     try {
-      const res = await login(data)
-      loginSuccess(res)
+      if (isCognitoEnabled) {
+        await signIn({ username: data.email, password: data.password })
+        const session = await fetchAuthSession()
+        const token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
+        if (token) {
+          localStorage.setItem('accessToken', token)
+        }
+        const user = await syncUser()
+        loginSuccess(user)
+      } else {
+        const res = await login(data)
+        loginSuccess(res)
+      }
       navigate('/dashboard')
     } catch (err) {
-      toast.error(err.response?.data?.message || t('common.error'))
+      toast.error(err.message || err.response?.data?.message || t('common.error'))
     }
   }
+
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">

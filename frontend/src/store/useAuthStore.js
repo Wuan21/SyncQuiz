@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { getMe, logout as apiLogout } from '../api/auth.api'
+import { getMe, logout as apiLogout, syncUser } from '../api/auth.api'
+import { fetchAuthSession, signOut } from 'aws-amplify/auth'
+
+const isCognitoEnabled = !!(import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID && import.meta.env.VITE_AWS_COGNITO_CLIENT_ID)
 
 const useAuthStore = create(
   persist(
@@ -19,14 +22,24 @@ const useAuthStore = create(
       setUser: (user) => set({ user }),
 
       loginSuccess: (data) => {
-        const { user, accessToken, refreshToken } = data
-        localStorage.setItem('accessToken', accessToken)
-        localStorage.setItem('refreshToken', refreshToken)
-        set({ user, accessToken, refreshToken })
+        if (!isCognitoEnabled) {
+          const { user, accessToken, refreshToken } = data
+          localStorage.setItem('accessToken', accessToken)
+          localStorage.setItem('refreshToken', refreshToken)
+          set({ user, accessToken, refreshToken })
+          return
+        }
+        set({ user: data })
       },
 
       logout: async () => {
-        try { await apiLogout() } catch (_) {}
+        if (isCognitoEnabled) {
+          try {
+            await signOut()
+          } catch (_) {}
+        } else {
+          try { await apiLogout() } catch (_) {}
+        }
         localStorage.removeItem('accessToken')
         localStorage.removeItem('refreshToken')
         set({ user: null, accessToken: null, refreshToken: null })
@@ -35,10 +48,24 @@ const useAuthStore = create(
       loadUser: async () => {
         set({ isLoading: true })
         try {
-          const user = await getMe()
-          set({ user })
+          if (isCognitoEnabled) {
+            const session = await fetchAuthSession()
+            const token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
+            if (!token) {
+              set({ user: null, accessToken: null, refreshToken: null })
+              return
+            }
+            localStorage.setItem('accessToken', token)
+            const user = await syncUser()
+            set({ user, accessToken: token })
+          } else {
+            const user = await getMe()
+            set({ user })
+          }
         } catch (_) {
-          set({ user: null })
+          localStorage.removeItem('accessToken')
+          localStorage.removeItem('refreshToken')
+          set({ user: null, accessToken: null, refreshToken: null })
         } finally {
           set({ isLoading: false })
         }

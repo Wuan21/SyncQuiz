@@ -26,5 +26,6 @@ router.post(
 router.post('/refresh', ctrl.refresh);
 router.post('/logout', authenticate, ctrl.logout);
 router.get('/me', authenticate, ctrl.me);
+router.post('/sync', authenticate, ctrl.sync);
 
 module.exports = router;
