@@ -2,6 +2,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import useAuthStore from './store/useAuthStore'
 
+// BUG-03 fix: when Cognito is enabled, token lives in Amplify session (not Zustand)
+// so we must call loadUser unconditionally on mount in that case
+const isCognitoEnabled = !!(import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID && import.meta.env.VITE_AWS_COGNITO_CLIENT_ID)
+
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 
@@ -26,7 +30,10 @@ export default function App() {
   const accessToken = useAuthStore((s) => s.accessToken)
 
   useEffect(() => {
-    if (accessToken) loadUser()
+    // When Cognito is enabled, token lives in Amplify (not Zustand store),
+    // so we always call loadUser on mount to restore session.
+    // When using local auth, only call if we have a stored token.
+    if (isCognitoEnabled || accessToken) loadUser()
   }, []) // eslint-disable-line
 
   return (

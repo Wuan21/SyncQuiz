@@ -10,9 +10,10 @@ async function bootstrap() {
   // Security
   app.use(helmet());
 
-  // CORS
+  // CORS — reads CORS_ORIGINS from .env (comma-separated list supported)
+  const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173').split(',').map((s) => s.trim());
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
     credentials: true,
   });
 
@@ -43,5 +44,4 @@ async function bootstrap() {
   console.log(`🚀 SyncQuiz API running on http://localhost:${port}/api`);
   console.log(`📖 Swagger docs at http://localhost:${port}/docs`);
 }
-bootstrap();
 bootstrap();

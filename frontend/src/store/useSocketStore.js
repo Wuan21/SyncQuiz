@@ -16,6 +16,16 @@ const useSocketStore = create((set, get) => ({
     set({ socket })
   },
 
+  // BUG-06 fix: reconnect with updated token (e.g. after token refresh)
+  reconnect: () => {
+    const { socket, connect } = get()
+    if (socket) {
+      socket.disconnect()
+      set({ socket: null, connected: false })
+    }
+    connect()
+  },
+
   disconnect: () => {
     get().socket?.disconnect()
     set({ socket: null, connected: false })

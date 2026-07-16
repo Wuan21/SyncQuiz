@@ -65,11 +65,13 @@ api.interceptors.response.use(
           .then(({ data }) => {
             localStorage.setItem('accessToken', data.accessToken)
             localStorage.setItem('refreshToken', data.refreshToken)
-            refreshing = null
           })
           .catch(() => {
             localStorage.clear()
             window.location.href = '/login'
+          })
+          .finally(() => {
+            // BUG-04 fix: always reset to null so future 401s can re-trigger refresh
             refreshing = null
           })
       }
