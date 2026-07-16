@@ -10,6 +10,12 @@ node_modules/
 dist/
 build/
 
+# NestJS incremental build cache
+*.tsbuildinfo
+
+# Coverage reports
+coverage/
+
 # Logs
 *.log
 npm-debug.log*
