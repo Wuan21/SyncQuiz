@@ -3,6 +3,7 @@ services:
   - type: web
     name: syncquiz-backend
     runtime: node
+    plan: free
     rootDir: backend
     buildCommand: npm ci && npm run build
     startCommand: npm run start:prod
