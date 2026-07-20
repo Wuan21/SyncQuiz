@@ -11,6 +11,7 @@ export class QuizzesRepository {
   constructor(@InjectModel(Quiz.name) private quizModel: Model<QuizDocument>) {}
 
   async findById(id: string): Promise<QuizDocument | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
     return this.quizModel.findById(id).where({ isDeleted: false }).exec();
   }
 
@@ -21,24 +22,53 @@ export class QuizzesRepository {
       isDeleted: false,
     };
     if (q) filter.title = { $regex: q, $options: 'i' };
-    if (categoryId) filter.categoryId = new Types.ObjectId(categoryId);
+    if (categoryId && Types.ObjectId.isValid(categoryId)) {
+      filter.categoryId = new Types.ObjectId(categoryId);
+    }
 
     const [data, total] = await Promise.all([
       this.quizModel
         .find(filter)
+        .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .populate('ownerId', 'fullName avatarUrl')
         .exec(),
       this.quizModel.countDocuments(filter),
     ]);
-    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+    return {
+      success: true,
+      quizzes: data,
+      data: data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findByOwner(ownerId: string, dto: SearchQuizDto) {
     const { q, page = 1, limit = 20 } = dto;
+
+    const ownerFilter = Types.ObjectId.isValid(ownerId)
+      ? {
+          $or: [
+            { ownerId: new Types.ObjectId(ownerId) },
+            { ownerId: ownerId },
+            { userId: ownerId },
+            { createdBy: ownerId },
+          ],
+        }
+      : {
+          $or: [
+            { ownerId: ownerId },
+            { userId: ownerId },
+            { createdBy: ownerId },
+          ],
+        };
+
     const filter: FilterQuery<QuizDocument> = {
-      ownerId: new Types.ObjectId(ownerId),
+      ...ownerFilter,
       isDeleted: false,
     };
     if (q) filter.title = { $regex: q, $options: 'i' };
@@ -46,20 +76,37 @@ export class QuizzesRepository {
     const [data, total] = await Promise.all([
       this.quizModel
         .find(filter)
+        .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .exec(),
       this.quizModel.countDocuments(filter),
     ]);
-    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+
+    return {
+      success: true,
+      quizzes: data,
+      data: data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async create(
     data: Partial<Quiz> & { ownerId: string },
   ): Promise<QuizDocument> {
+    if (!data.ownerId) {
+      throw new Error('ownerId is required to create a quiz');
+    }
+    const ownerId = Types.ObjectId.isValid(data.ownerId)
+      ? new Types.ObjectId(data.ownerId)
+      : data.ownerId;
+
     const quiz = new this.quizModel({
       ...data,
-      ownerId: new Types.ObjectId(data.ownerId),
+      ownerId,
     });
     return quiz.save();
   }
@@ -69,11 +116,19 @@ export class QuizzesRepository {
     ownerId: string,
     data: Partial<Quiz>,
   ): Promise<QuizDocument | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+
+    const ownerFilter = Types.ObjectId.isValid(ownerId)
+      ? {
+          $or: [{ ownerId: new Types.ObjectId(ownerId) }, { ownerId: ownerId }],
+        }
+      : { ownerId: ownerId };
+
     return (this.quizModel as any)
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(id),
-          ownerId: new Types.ObjectId(ownerId),
+          ...ownerFilter,
           isDeleted: false,
         },
         { $set: data },
@@ -83,18 +138,28 @@ export class QuizzesRepository {
   }
 
   async softDelete(id: string, ownerId: string): Promise<boolean> {
+    if (!Types.ObjectId.isValid(id)) return false;
+
+    const ownerFilter = Types.ObjectId.isValid(ownerId)
+      ? {
+          $or: [{ ownerId: new Types.ObjectId(ownerId) }, { ownerId: ownerId }],
+        }
+      : { ownerId: ownerId };
+
     const result = await (this.quizModel as any).updateOne(
-      { _id: new Types.ObjectId(id), ownerId: new Types.ObjectId(ownerId) },
+      { _id: new Types.ObjectId(id), ...ownerFilter },
       { isDeleted: true, deletedAt: new Date() },
     );
     return result.modifiedCount > 0;
   }
 
   async incrementPlays(id: string): Promise<void> {
+    if (!Types.ObjectId.isValid(id)) return;
     await this.quizModel.updateOne({ _id: id }, { $inc: { totalPlays: 1 } });
   }
 
   async incrementQuestionCount(id: string, amount: number): Promise<void> {
+    if (!Types.ObjectId.isValid(id)) return;
     await this.quizModel.updateOne(
       { _id: id },
       { $inc: { questionCount: amount } },

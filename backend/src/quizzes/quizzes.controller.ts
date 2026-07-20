@@ -11,6 +11,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { QuizzesService } from './quizzes.service';
@@ -27,6 +28,16 @@ export class QuizzesController {
     private readonly aiService: AiService,
   ) {}
 
+  private getUserId(req: any): string {
+    const id = req.user?.id || req.user?.sub || req.user?._id;
+    if (!id) {
+      throw new UnauthorizedException(
+        'Không xác định được người dùng từ token',
+      );
+    }
+    return id.toString();
+  }
+
   @Get()
   @ApiOperation({ summary: 'Search public quizzes' })
   findPublic(@Query() dto: SearchQuizDto) {
@@ -38,13 +49,18 @@ export class QuizzesController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get my quizzes' })
   findMine(@Req() req: any, @Query() dto: SearchQuizDto) {
-    return this.quizzesService.findMyQuizzes(req.user.id, dto);
+    const userId = this.getUserId(req);
+    return this.quizzesService.findMyQuizzes(userId, dto);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get quiz by ID' })
   findOne(@Param('id') id: string, @Req() req: any) {
-    return this.quizzesService.findById(id, req.user?.id);
+    const userId = req.user?.id || req.user?.sub || req.user?._id;
+    return this.quizzesService.findById(
+      id,
+      userId ? userId.toString() : undefined,
+    );
   }
 
   @Post()
@@ -52,7 +68,8 @@ export class QuizzesController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Create quiz' })
   create(@Req() req: any, @Body() dto: CreateQuizDto) {
-    return this.quizzesService.create(req.user.id, dto);
+    const userId = this.getUserId(req);
+    return this.quizzesService.create(userId, dto);
   }
 
   @Patch(':id')
@@ -60,7 +77,8 @@ export class QuizzesController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Update quiz' })
   update(@Param('id') id: string, @Req() req: any, @Body() dto: UpdateQuizDto) {
-    return this.quizzesService.update(id, req.user.id, dto);
+    const userId = this.getUserId(req);
+    return this.quizzesService.update(id, userId, dto);
   }
 
   @Delete(':id')
@@ -69,7 +87,8 @@ export class QuizzesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete quiz' })
   delete(@Param('id') id: string, @Req() req: any) {
-    return this.quizzesService.delete(id, req.user.id);
+    const userId = this.getUserId(req);
+    return this.quizzesService.delete(id, userId);
   }
 
   @Post(':id/clone')
@@ -77,7 +96,8 @@ export class QuizzesController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Clone quiz' })
   clone(@Param('id') id: string, @Req() req: any) {
-    return this.quizzesService.clone(id, req.user.id);
+    const userId = this.getUserId(req);
+    return this.quizzesService.clone(id, userId);
   }
 
   @Post('ai-generate')

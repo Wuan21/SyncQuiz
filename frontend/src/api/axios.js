@@ -10,21 +10,25 @@ const api = axios.create({
 
 // Attach access token
 api.interceptors.request.use(async (config) => {
+  let token = null
   if (isCognitoEnabled) {
     try {
       const session = await fetchAuthSession()
-      const token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`
-        localStorage.setItem('accessToken', token)
-      }
+      token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
+      if (token) localStorage.setItem('accessToken', token)
     } catch (_) {
-      // fail silently, request will proceed without header
+      // ignore amplify error, fallback to localStorage
     }
-  } else {
-    const token = localStorage.getItem('accessToken')
-    if (token) config.headers.Authorization = `Bearer ${token}`
   }
+
+  if (!token) {
+    token = localStorage.getItem('accessToken')
+  }
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+
   return config
 })
 
@@ -71,7 +75,6 @@ api.interceptors.response.use(
             window.location.href = '/login'
           })
           .finally(() => {
-            // BUG-04 fix: always reset to null so future 401s can re-trigger refresh
             refreshing = null
           })
       }
