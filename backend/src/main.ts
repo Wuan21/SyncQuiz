@@ -57,7 +57,20 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document);
 
   // Initialize Socket.IO BEFORE listening so upgrade listeners are bound
-  const { initSocket } = require('./socket/gameHandler');
+  const { initSocket, setModels } = require('./socket/gameHandler');
+  const { getModelToken } = require('@nestjs/mongoose');
+
+  try {
+    const sessionModel = app.get(getModelToken('GameSession'));
+    const questionModel = app.get(getModelToken('Question'));
+    setModels(sessionModel, questionModel);
+  } catch (e) {
+    console.warn(
+      'Could not inject Mongoose models into socket handler',
+      e.message,
+    );
+  }
+
   initSocket(app.getHttpServer());
 
   const port = process.env.PORT || 3000;

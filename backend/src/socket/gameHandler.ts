@@ -18,8 +18,17 @@ function getGameRoom(gameId: string): string {
   return `game:${gameId}`;
 }
 
-// Safe model getters to prevent MissingSchemaError
+let sessionModelInstance: mongoose.Model<any> | null = null;
+let questionModelInstance: mongoose.Model<any> | null = null;
+
+export const setModels = (session: any, question: any) => {
+  sessionModelInstance = session;
+  questionModelInstance = question;
+};
+
+// Safe model getters
 function getSessionModel(): mongoose.Model<any> {
+  if (sessionModelInstance) return sessionModelInstance;
   return (
     mongoose.models.GameSession ||
     mongoose.model('GameSession', GameSessionSchema)
@@ -27,6 +36,7 @@ function getSessionModel(): mongoose.Model<any> {
 }
 
 function getQuestionModel(): mongoose.Model<any> {
+  if (questionModelInstance) return questionModelInstance;
   return mongoose.models.Question || mongoose.model('Question', QuestionSchema);
 }
 
