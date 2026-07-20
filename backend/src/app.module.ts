@@ -29,9 +29,7 @@ import { HealthModule } from './health/health.module';
       inject: [ConfigService],
     }),
 
-    ThrottlerModule.forRoot([
-      { name: 'short', ttl: 60000, limit: 100 },
-    ]),
+    ThrottlerModule.forRoot([{ name: 'short', ttl: 60000, limit: 100 }]),
 
     AuthModule,
     UsersModule,

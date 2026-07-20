@@ -14,8 +14,11 @@ export class User {
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
   email: string;
 
-  @Prop({ required: true, select: false })
-  passwordHash: string;
+  @Prop({ required: false, select: false })
+  passwordHash?: string;
+
+  @Prop({ default: null })
+  cognitoId?: string;
 
   @Prop({ required: true, trim: true, maxlength: 100 })
   fullName: string;
@@ -38,7 +41,7 @@ export const UserSchema = SchemaFactory.createForClass(User);
 // Virtual id
 UserSchema.set('toJSON', {
   virtuals: true,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   transform: (_doc: any, ret: any) => {
     ret['id'] = ret['_id'];
     delete ret['_id'];

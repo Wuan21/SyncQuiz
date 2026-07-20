@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 type FilterQuery<T> = Record<string, any>;
 import { Quiz, QuizDocument, QuizVisibility } from './schemas/quiz.schema';
 import { SearchQuizDto } from './dto/quiz.dto';
@@ -24,7 +24,12 @@ export class QuizzesRepository {
     if (categoryId) filter.categoryId = new Types.ObjectId(categoryId);
 
     const [data, total] = await Promise.all([
-      this.quizModel.find(filter).skip((page - 1) * limit).limit(limit).populate('ownerId', 'fullName avatarUrl').exec(),
+      this.quizModel
+        .find(filter)
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate('ownerId', 'fullName avatarUrl')
+        .exec(),
       this.quizModel.countDocuments(filter),
     ]);
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
@@ -32,32 +37,52 @@ export class QuizzesRepository {
 
   async findByOwner(ownerId: string, dto: SearchQuizDto) {
     const { q, page = 1, limit = 20 } = dto;
-    const filter: FilterQuery<QuizDocument> = { ownerId: new Types.ObjectId(ownerId), isDeleted: false };
+    const filter: FilterQuery<QuizDocument> = {
+      ownerId: new Types.ObjectId(ownerId),
+      isDeleted: false,
+    };
     if (q) filter.title = { $regex: q, $options: 'i' };
 
     const [data, total] = await Promise.all([
-      this.quizModel.find(filter).skip((page - 1) * limit).limit(limit).exec(),
+      this.quizModel
+        .find(filter)
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .exec(),
       this.quizModel.countDocuments(filter),
     ]);
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  async create(data: Partial<Quiz> & { ownerId: string }): Promise<QuizDocument> {
-    const quiz = new this.quizModel({ ...data, ownerId: new Types.ObjectId(data.ownerId) });
+  async create(
+    data: Partial<Quiz> & { ownerId: string },
+  ): Promise<QuizDocument> {
+    const quiz = new this.quizModel({
+      ...data,
+      ownerId: new Types.ObjectId(data.ownerId),
+    });
     return quiz.save();
   }
 
-  async updateById(id: string, ownerId: string, data: Partial<Quiz>): Promise<QuizDocument | null> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (this.quizModel as any).findOneAndUpdate(
-      { _id: new Types.ObjectId(id), ownerId: new Types.ObjectId(ownerId), isDeleted: false },
-      { $set: data },
-      { new: true },
-    ).exec();
+  async updateById(
+    id: string,
+    ownerId: string,
+    data: Partial<Quiz>,
+  ): Promise<QuizDocument | null> {
+    return (this.quizModel as any)
+      .findOneAndUpdate(
+        {
+          _id: new Types.ObjectId(id),
+          ownerId: new Types.ObjectId(ownerId),
+          isDeleted: false,
+        },
+        { $set: data },
+        { new: true },
+      )
+      .exec();
   }
 
   async softDelete(id: string, ownerId: string): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await (this.quizModel as any).updateOne(
       { _id: new Types.ObjectId(id), ownerId: new Types.ObjectId(ownerId) },
       { isDeleted: true, deletedAt: new Date() },

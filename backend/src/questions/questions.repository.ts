@@ -23,7 +23,9 @@ export class QuestionsRepository {
   }
 
   async create(quizId: string, dto: CreateQuestionDto) {
-    const count = await this.model.countDocuments({ quizId: new Types.ObjectId(quizId) });
+    const count = await this.model.countDocuments({
+      quizId: new Types.ObjectId(quizId),
+    });
     return this.model.create({
       ...dto,
       quizId: new Types.ObjectId(quizId),

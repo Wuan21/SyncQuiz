@@ -6,7 +6,9 @@ import { QuizzesRepository } from './quizzes.repository';
 import { Quiz, QuizSchema } from './schemas/quiz.schema';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: Quiz.name, schema: QuizSchema }])],
+  imports: [
+    MongooseModule.forFeature([{ name: Quiz.name, schema: QuizSchema }]),
+  ],
   controllers: [QuizzesController],
   providers: [QuizzesService, QuizzesRepository],
   exports: [QuizzesService, QuizzesRepository],

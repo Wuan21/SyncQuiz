@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UsersRepository } from './users.repository';
 import { UpdateProfileDto, ChangePasswordDto } from './dto/update-profile.dto';
@@ -14,7 +19,10 @@ export class UsersService {
     return user;
   }
 
-  async findByEmail(email: string, withPassword = false): Promise<UserDocument | null> {
+  async findByEmail(
+    email: string,
+    withPassword = false,
+  ): Promise<UserDocument | null> {
     return this.usersRepo.findByEmail(email, withPassword);
   }
 
@@ -29,7 +37,10 @@ export class UsersService {
     return this.usersRepo.create(data);
   }
 
-  async updateProfile(userId: string, dto: UpdateProfileDto): Promise<UserDocument> {
+  async updateProfile(
+    userId: string,
+    dto: UpdateProfileDto,
+  ): Promise<UserDocument> {
     const user = await this.usersRepo.updateById(userId, dto);
     if (!user) throw new NotFoundException('User not found');
     return user;
@@ -41,7 +52,10 @@ export class UsersService {
 
     // Re-fetch with password
     const userWithPw = await this.usersRepo.findByEmail(user.email, true);
-    const valid = await bcrypt.compare(dto.currentPassword, userWithPw!.passwordHash);
+    const valid = await bcrypt.compare(
+      dto.currentPassword,
+      userWithPw.passwordHash,
+    );
     if (!valid) throw new BadRequestException('Current password is incorrect');
 
     const newHash = await bcrypt.hash(dto.newPassword, 12);

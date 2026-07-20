@@ -17,19 +17,29 @@ export const CategorySchema = SchemaFactory.createForClass(Category);
 
 @Injectable()
 class CategoriesService {
-  constructor(@InjectModel(Category.name) private model: Model<CategoryDocument>) {}
-  findAll() { return this.model.find().exec(); }
+  constructor(
+    @InjectModel(Category.name) private model: Model<CategoryDocument>,
+  ) {}
+  findAll() {
+    return this.model.find().exec();
+  }
 }
 
 @ApiTags('Categories')
 @Controller('categories')
 class CategoriesController {
   constructor(private svc: CategoriesService) {}
-  @Get() findAll() { return this.svc.findAll(); }
+  @Get() findAll() {
+    return this.svc.findAll();
+  }
 }
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: Category.name, schema: CategorySchema }])],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Category.name, schema: CategorySchema },
+    ]),
+  ],
   controllers: [CategoriesController],
   providers: [CategoriesService],
   exports: [CategoriesService],

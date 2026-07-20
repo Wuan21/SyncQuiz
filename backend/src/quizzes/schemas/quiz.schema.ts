@@ -52,7 +52,7 @@ QuizSchema.index({ ownerId: 1 });
 QuizSchema.index({ visibility: 1, isDeleted: 1 });
 QuizSchema.set('toJSON', {
   virtuals: true,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   transform: (_doc: any, ret: any) => {
     ret['id'] = ret['_id'];
     delete ret['_id'];

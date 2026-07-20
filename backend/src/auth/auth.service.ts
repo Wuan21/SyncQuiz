@@ -26,7 +26,7 @@ export class AuthService {
       passwordHash,
       fullName: dto.fullName,
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const uid = (user as any)._id.toString();
     const tokens = await this.generateTokens(uid, user.email, user.role);
     return { user, ...tokens };
@@ -36,13 +36,15 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.usersService.findByEmail(dto.email, true);
     if (!user) throw new UnauthorizedException('Invalid credentials');
-    if (!user.isActive) throw new UnauthorizedException('Account is deactivated');
+    if (!user.isActive)
+      throw new UnauthorizedException('Account is deactivated');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const valid = await bcrypt.compare(dto.password, (user as any).passwordHash);
+    const valid = await bcrypt.compare(
+      dto.password,
+      (user as any).passwordHash,
+    );
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const uid = (user as any)._id.toString();
     const tokens = await this.generateTokens(uid, user.email, user.role);
     return { user, ...tokens };
@@ -55,7 +57,7 @@ export class AuthService {
         secret: this.config.get<string>('JWT_REFRESH_SECRET'),
       });
       const user = await this.usersService.findById(payload.sub);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const uid = (user as any)._id.toString();
       const tokens = await this.generateTokens(uid, user.email, user.role);
       return tokens;
@@ -69,16 +71,21 @@ export class AuthService {
     const payload = { sub: userId, email, role };
 
     const [accessToken, refreshToken] = await Promise.all([
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      this.jwtService.signAsync(payload as any, {
-        secret: this.config.get<string>('JWT_ACCESS_SECRET'),
-        expiresIn: this.config.get('JWT_ACCESS_EXPIRES_IN'),
-      } as any),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      this.jwtService.signAsync(payload as any, {
-        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN'),
-      } as any),
+      this.jwtService.signAsync(
+        payload as any,
+        {
+          secret: this.config.get<string>('JWT_ACCESS_SECRET'),
+          expiresIn: this.config.get('JWT_ACCESS_EXPIRES_IN'),
+        } as any,
+      ),
+
+      this.jwtService.signAsync(
+        payload as any,
+        {
+          secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+          expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN'),
+        } as any,
+      ),
     ]);
 
     return { accessToken, refreshToken };

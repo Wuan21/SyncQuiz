@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { QuizzesRepository } from './quizzes.repository';
 import { CreateQuizDto, UpdateQuizDto, SearchQuizDto } from './dto/quiz.dto';
 
@@ -40,7 +44,9 @@ export class QuizzesService {
 
   async clone(id: string, userId: string) {
     const original = await this.findById(id, userId);
-    const { _id, createdAt, updatedAt, totalPlays, ...rest } = (original as any).toObject();
+    const { _id, createdAt, updatedAt, totalPlays, ...rest } = (
+      original as any
+    ).toObject();
     return this.quizzesRepo.create({
       ...rest,
       ownerId: userId,

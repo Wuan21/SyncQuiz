@@ -1,4 +1,13 @@
-import { IsString, IsEnum, IsBoolean, IsOptional, IsNumber, Min, Max, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsEnum,
+  IsBoolean,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+  MaxLength,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { QuizVisibility } from '../schemas/quiz.schema';
 

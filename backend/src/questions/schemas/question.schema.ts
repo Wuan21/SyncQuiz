@@ -28,7 +28,11 @@ export class Question {
   @Prop({ type: Types.ObjectId, ref: 'Quiz', required: true, index: true })
   quizId: Types.ObjectId;
 
-  @Prop({ type: String, enum: QuestionType, default: QuestionType.MULTIPLE_CHOICE })
+  @Prop({
+    type: String,
+    enum: QuestionType,
+    default: QuestionType.MULTIPLE_CHOICE,
+  })
   type: QuestionType;
 
   @Prop({ required: true, trim: true, maxlength: 1000 })
