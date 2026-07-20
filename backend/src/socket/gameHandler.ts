@@ -113,9 +113,14 @@ export const initSocket = (server: any) => {
       const QuestionModel =
         mongoose.models.Question || mongoose.model('Question');
 
+      const numericPin = Number(normalizedPin);
+      const pinFilter = !isNaN(numericPin)
+        ? { $or: [{ pin: normalizedPin }, { pin: numericPin }] }
+        : { pin: normalizedPin };
+
       const session: any = await SessionModel.findOne({
-        pin: normalizedPin,
-        status: { $ne: 'finished' },
+        ...pinFilter,
+        status: { $nin: ['finished', 'ended'] },
       }).lean();
 
       if (!session) {
@@ -173,9 +178,12 @@ export const initSocket = (server: any) => {
           if (sessionId) {
             session = await SessionModel.findById(sessionId).lean();
           } else if (pin) {
-            session = await SessionModel.findOne({
-              pin: String(pin).trim(),
-            }).lean();
+            const normalizedPin = String(pin).trim();
+            const numericPin = Number(normalizedPin);
+            const pinFilter = !isNaN(numericPin)
+              ? { $or: [{ pin: normalizedPin }, { pin: numericPin }] }
+              : { pin: normalizedPin };
+            session = await SessionModel.findOne(pinFilter).lean();
           }
 
           if (!session)
@@ -271,7 +279,7 @@ export const initSocket = (server: any) => {
           return socket.emit('error', errRes);
         }
 
-        if (game.status === 'finished') {
+        if (game.status === 'finished' || game.status === 'ended') {
           const errRes = {
             success: false,
             code: 'GAME_ENDED',
@@ -344,10 +352,16 @@ export const initSocket = (server: any) => {
       game.status = 'active';
       const SessionModel =
         mongoose.models.GameSession || mongoose.model('GameSession');
-      await SessionModel.findOneAndUpdate(
-        { pin },
-        { status: 'active', startedAt: new Date() },
-      );
+
+      const numericPin = Number(pin);
+      const pinFilter = !isNaN(numericPin)
+        ? { $or: [{ pin }, { pin: numericPin }] }
+        : { pin };
+
+      await SessionModel.findOneAndUpdate(pinFilter, {
+        status: 'active',
+        startedAt: new Date(),
+      });
 
       io.to(pin).to(`game:${pin}`).emit('game:started');
       sendNextQuestion(pin);
@@ -642,7 +656,12 @@ async function endGame(pin: string) {
     const AchievementModel =
       mongoose.models.Achievement || mongoose.model('Achievement');
 
-    await SessionModel.findByIdAndUpdate(game.sessionId, {
+    const numericPin = Number(pin);
+    const pinFilter = !isNaN(numericPin)
+      ? { $or: [{ pin }, { pin: numericPin }] }
+      : { pin };
+
+    await SessionModel.findOneAndUpdate(pinFilter, {
       status: 'finished',
       endedAt: new Date(),
       currentQuestionIndex: game.currentIdx,

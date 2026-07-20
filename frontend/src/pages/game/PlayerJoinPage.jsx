@@ -12,27 +12,37 @@ export default function PlayerJoinPage() {
   const { pin: pinParam } = useParams()
   const navigate = useNavigate()
   const { socket, connect } = useSocketStore()
-  const { register, handleSubmit, formState: { isSubmitting } } = useForm({
+  const { register, handleSubmit } = useForm({
     defaultValues: { pin: pinParam || '', nickname: '' },
   })
   const [avatarIdx, setAvatarIdx] = useState(0)
+  const [joining, setJoining] = useState(false)
 
   const onSubmit = async ({ pin, nickname, teamName }) => {
+    if (joining) return
     const cleanPin = String(pin || '').trim()
     const cleanNick = String(nickname || '').trim()
-    if (!cleanPin || !cleanNick) return toast.error('Vui lòng nhập PIN và Nickname')
 
-    console.log('[JOIN GAME] Attempting join with PIN:', cleanPin, 'Nickname:', cleanNick)
+    if (!cleanPin || !cleanNick) {
+      toast.dismiss()
+      return toast.error('Vui lòng nhập PIN và Nickname')
+    }
+
+    setJoining(true)
+    toast.dismiss()
 
     try {
+      // Step 1: Validate session via REST API
       const session = await getSessionByPin(cleanPin)
-      if (session.status === 'finished') {
+      if (session.status === 'finished' || session.status === 'ended') {
+        setJoining(false)
         return toast.error('Phòng chơi đã kết thúc')
       }
 
+      // Step 2: Connect Socket.IO
       const sock = connect() || socket
-
       if (!sock) {
+        setJoining(false)
         return toast.error('Không thể kết nối đến máy chủ WebSocket')
       }
 
@@ -43,10 +53,12 @@ export default function PlayerJoinPage() {
         teamName: teamName?.trim() || null,
       }
 
+      // Step 3: Join game via Socket.IO with callback acknowledgment
       sock.emit('player:join', joinPayload, (response) => {
-        console.log('[JOIN GAME] Socket ACK callback response:', response)
         if (response && !response.success) {
+          setJoining(false)
           const code = response.code
+          toast.dismiss()
           if (code === 'GAME_NOT_FOUND') toast.error('Không tìm thấy phòng chơi với mã PIN này')
           else if (code === 'GAME_ENDED') toast.error('Phòng chơi đã kết thúc')
           else if (code === 'NICKNAME_TAKEN') toast.error('Nickname này đã có người sử dụng')
@@ -56,15 +68,16 @@ export default function PlayerJoinPage() {
 
       const handleJoined = (res) => {
         sock.off('error', handleError)
-        console.log('[JOIN GAME] Player joined successfully:', res)
+        setJoining(false)
         navigate(`/play/${cleanPin}?nickname=${encodeURIComponent(cleanNick)}`)
       }
 
       const handleError = (err) => {
         sock.off('player:joined', handleJoined)
-        console.error('[JOIN GAME ERROR]', err)
+        setJoining(false)
         const code = err?.code
         const msg = typeof err === 'string' ? err : err?.message
+        toast.dismiss()
         if (code === 'GAME_NOT_FOUND') toast.error('Không tìm thấy phòng chơi với mã PIN này')
         else if (code === 'GAME_ENDED') toast.error('Phòng chơi đã kết thúc')
         else if (code === 'NICKNAME_TAKEN') toast.error('Nickname này đã có người sử dụng')
@@ -74,7 +87,8 @@ export default function PlayerJoinPage() {
       sock.once('player:joined', handleJoined)
       sock.once('error', handleError)
     } catch (err) {
-      console.error('[JOIN GAME API ERROR]', err)
+      setJoining(false)
+      toast.dismiss()
       const code = err.response?.data?.code
       const msg = err.response?.data?.message || err.message
       if (code === 'GAME_NOT_FOUND' || err.response?.status === 404) {
@@ -154,8 +168,8 @@ export default function PlayerJoinPage() {
               </div>
             </div>
 
-            <button type="submit" disabled={isSubmitting} className="btn-primary w-full py-3.5 text-base">
-              {isSubmitting ? 'Đang vào...' : 'Vào game 🚀'}
+            <button type="submit" disabled={joining} className="btn-primary w-full py-3.5 text-base">
+              {joining ? 'Đang vào...' : 'Vào game 🚀'}
             </button>
           </form>
         </div>
