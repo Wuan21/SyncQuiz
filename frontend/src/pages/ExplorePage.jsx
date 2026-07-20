@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Search, BookOpen, Play } from 'lucide-react'
 import { getQuizzes } from '../api/quizzes.api'
-import { getCategories } from '../api/game.api'
+import { getCategories } from '../api/upload.api'
 
 export default function ExplorePage() {
   const [search, setSearch] = useState('')

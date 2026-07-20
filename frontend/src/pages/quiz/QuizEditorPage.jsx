@@ -7,7 +7,7 @@ import {
   getQuizFull, createQuiz, updateQuiz,
   createQuestion, updateQuestion, deleteQuestion, reorderQuestions,
 } from '../../api/quizzes.api'
-import { presignUpload } from '../../api/game.api'
+import { presignUpload } from '../../api/upload.api'
 import { importCSV, downloadCSVTemplate } from '../../api/advanced.api'
 import AIGeneratorModal from '../../components/quiz/AIGeneratorModal'
 
@@ -130,6 +130,9 @@ export default function QuizEditorPage() {
   // ── Image upload ───────────────────────────────────────────────────────────
   const uploadImage = async (file) => {
     try {
+      if (file.size > 10 * 1024 * 1024) {
+        return toast.error('Tệp quá lớn (tối đa 10MB)')
+      }
       const uploadRes = await presignUpload({
         fileName: file.name,
         contentType: file.type,
@@ -137,13 +140,21 @@ export default function QuizEditorPage() {
       })
       const { uploadUrl, publicUrl, backend } = uploadRes
 
-      // Use PUT for S3, POST for local fallback
-      const method = backend === 'local' ? 'POST' : 'PUT'
-      await fetch(uploadUrl, {
-        method,
-        body: file,
-        headers: { 'Content-Type': file.type },
-      })
+      if (backend === 'local') {
+        // Local fallback — multipart PUT to the presign URL
+        const form = new FormData()
+        form.append('file', file)
+        await fetch(uploadUrl, {
+          method: 'POST',
+          body: form,
+        })
+      } else {
+        await fetch(uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type },
+        })
+      }
       updateQ('imageUrl', publicUrl)
       toast.success('Image uploaded')
     } catch (err) {

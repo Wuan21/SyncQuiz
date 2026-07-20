@@ -149,7 +149,7 @@ export default function PlayerGamePage() {
     return () => clearInterval(t)
   }, [phase, timeLeft])
 
-  const usePowerUp = (type) => {
+  const triggerPowerUp = (type) => {
     if (!powerUps[type] || selected !== null) return
     socket.emit('player:powerup', { type })
     setPowerUps((p) => ({ ...p, [type]: 0 }))
@@ -300,15 +300,15 @@ export default function PlayerGamePage() {
         <div className="flex justify-center gap-3 mt-4">
           <PowerUpBtn
             label="2×" title="Double Points" active={powerUps.double_points > 0}
-            onClick={() => usePowerUp('double_points')} color="bg-yellow-500"
+            onClick={() => triggerPowerUp('double_points')} color="bg-yellow-500"
           />
           <PowerUpBtn
             label="50/50" title="Remove 2 wrong answers" active={powerUps.fifty_fifty > 0}
-            onClick={() => usePowerUp('fifty_fifty')} color="bg-blue-500"
+            onClick={() => triggerPowerUp('fifty_fifty')} color="bg-blue-500"
           />
           <PowerUpBtn
             label="+15s" title="Add 15 seconds" active={powerUps.extra_time > 0}
-            onClick={() => usePowerUp('extra_time')} color="bg-green-500"
+            onClick={() => triggerPowerUp('extra_time')} color="bg-green-500"
           />
         </div>
       )}

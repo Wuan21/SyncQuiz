@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts'
 import { Trophy, Users, BookOpen, Zap, TrendingUp } from 'lucide-react'
-import { getAnalytics } from '../../api/game.api'
+import { getAnalytics } from '../../api/upload.api'
 import { getMyAchievements } from '../../api/advanced.api'
 
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6']

@@ -1,44 +1,60 @@
-import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Controller, Get } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Document } from 'mongoose';
+import {
+  Controller,
+  Get,
+  Injectable,
+  Module,
+  OnModuleInit,
+  Logger,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Injectable } from '@nestjs/common';
-
-@Schema({ timestamps: true, collection: 'categories' })
-export class Category {
-  @Prop({ required: true, unique: true }) name: string;
-  @Prop({ required: true, unique: true }) slug: string;
-}
-export type CategoryDocument = Category & Document;
-export const CategorySchema = SchemaFactory.createForClass(Category);
-
-@Injectable()
-class CategoriesService {
-  constructor(
-    @InjectModel(Category.name) private model: Model<CategoryDocument>,
-  ) {}
-  findAll() {
-    return this.model.find().exec();
-  }
-}
+import { InjectModel, MongooseModule } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import {
+  Category,
+  CategoryDocument,
+  SEED_CATEGORIES,
+} from './schemas/category.schema';
 
 @ApiTags('Categories')
 @Controller('categories')
 class CategoriesController {
-  constructor(private svc: CategoriesService) {}
-  @Get() findAll() {
+  constructor(private readonly svc: CategoriesService) {}
+
+  @Get()
+  findAll() {
     return this.svc.findAll();
+  }
+}
+
+@Injectable()
+class CategoriesService implements OnModuleInit {
+  private readonly logger = new Logger(CategoriesService.name);
+
+  constructor(
+    @InjectModel(Category.name)
+    private readonly model: Model<CategoryDocument>,
+  ) {}
+
+  async onModuleInit() {
+    try {
+      const count = await this.model.countDocuments();
+      if (count === 0) {
+        await this.model.insertMany(SEED_CATEGORIES, { ordered: false });
+        this.logger.log(`Seeded ${SEED_CATEGORIES.length} categories`);
+      }
+    } catch (e: any) {
+      this.logger.warn(`Category seed skipped: ${e.message}`);
+    }
+  }
+
+  findAll() {
+    return this.model.find().sort({ name: 1 }).lean();
   }
 }
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: Category.name, schema: CategorySchema },
-    ]),
+    MongooseModule.forFeature([{ name: Category.name, schema: Category }]),
   ],
   controllers: [CategoriesController],
   providers: [CategoriesService],

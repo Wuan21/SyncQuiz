@@ -1,32 +1,73 @@
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import * as jwt from 'jsonwebtoken';
 import * as mongoose from 'mongoose';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
-import { awardAchievement } from '../analytics/schemas/achievement.schema';
-import { GameSessionSchema } from '../live/schemas/game-session.schema';
+import {
+  GameSessionSchema,
+  GameSessionStatus,
+} from '../live/schemas/game-session.schema';
 import { QuestionSchema } from '../questions/schemas/question.schema';
+import { calculateScore, normalizePin } from '../live/live.service';
+import { awardAchievement } from '../analytics/schemas/achievement.schema';
 
-/* ── Helpers ──────────────────────────────────────────────────────────────── */
+const ANSWER_COLORS = ['#e53935', '#1e88e5', '#43a047', '#f9a825'];
+const DEFAULT_POWERUPS = {
+  double_points: 1,
+  fifty_fifty: 1,
+  extra_time: 1,
+};
 
-function normalizePin(value: any): string {
-  return String(value ?? '')
-    .replace(/\s+/g, '')
-    .trim();
-}
+type PlayerState = {
+  socketId: string | null;
+  playerId: string;
+  userId: string | null;
+  nickname: string;
+  avatarIndex: number;
+  teamName: string | null;
+  totalScore: number;
+  streak: number;
+  answers: Array<{
+    questionId: any;
+    selectedOption: number;
+    isCorrect: boolean;
+    pointsEarned: number;
+    timeSpent: number;
+  }>;
+  powerUps: { double_points: number; fifty_fifty: number; extra_time: number };
+  activePowerUp: string | null;
+};
 
-function getGameRoom(gameId: string): string {
-  return `game:${gameId}`;
-}
+type GameState = {
+  sessionId: string;
+  pin: string;
+  hostId: string;
+  hostSocketId: string;
+  questions: any[];
+  currentIdx: number;
+  players: Record<string, PlayerState>; // keyed by socket.id
+  playerByPlayerId: Record<string, PlayerState>;
+  answers: Record<number, Record<string, any>>; // [idx][socketId] -> {optionIndex,timeSpent}
+  status: string;
+  questionTimer: NodeJS.Timeout | null;
+  questionStartTs: number;
+  questionDurationMs: number;
+  paused: boolean;
+};
+
+let io: Server;
+
+const activeGames = new Map<string, GameState>();
 
 let sessionModelInstance: mongoose.Model<any> | null = null;
 let questionModelInstance: mongoose.Model<any> | null = null;
+let achievementModelInstance: mongoose.Model<any> | null = null;
 
-export const setModels = (session: any, question: any) => {
+export const setModels = (session: any, question: any, achievement: any) => {
   sessionModelInstance = session;
   questionModelInstance = question;
+  if (achievement) achievementModelInstance = achievement;
 };
 
-// Safe model getters
 function getSessionModel(): mongoose.Model<any> {
   if (sessionModelInstance) return sessionModelInstance;
   return (
@@ -40,29 +81,38 @@ function getQuestionModel(): mongoose.Model<any> {
   return mongoose.models.Question || mongoose.model('Question', QuestionSchema);
 }
 
-/* ── In-memory game state for active play (scoring, timers) ──────────────── */
-const activeGames = new Map<string, any>();
-
-const ANSWER_COLORS = ['#e53935', '#1e88e5', '#43a047', '#f9a825'];
-const DEFAULT_POWERUPS = { double_points: 1, fifty_fifty: 1, extra_time: 1 };
-
-function calculateScore(
-  isCorrect: boolean,
-  timeSpent: number,
-  timeLimit: number,
-  points: number,
-  streak: number,
-  doublePoints = false,
-) {
-  if (!isCorrect) return 0;
-  const ratio = Math.max(0, 1 - timeSpent / (timeLimit * 1000));
-  const base = Math.round(points * (0.5 + 0.5 * ratio));
-  const bonus = streak >= 3 ? Math.round(base * 0.1 * Math.min(streak, 5)) : 0;
-  const total = base + bonus;
-  return doublePoints ? total * 2 : total;
+function getAchievementModel(): mongoose.Model<any> {
+  if (achievementModelInstance) return achievementModelInstance;
+  return mongoose.models.Achievement || null;
 }
 
-let io: Server;
+function getGameRoom(gameId: string): string {
+  return `game:${gameId}`;
+}
+
+function snapshotPlayers(game: GameState) {
+  return Object.values(game.players).map((p) => ({
+    playerId: p.playerId,
+    nickname: p.nickname,
+    teamName: p.teamName || '',
+    avatarIndex: p.avatarIndex,
+    connected: !!p.socketId,
+    totalScore: p.totalScore,
+    rank: 0,
+  }));
+}
+
+function sortLeaderboard(game: GameState) {
+  return Object.values(game.players)
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .map((p, i) => ({
+      rank: i + 1,
+      playerId: p.playerId,
+      nickname: p.nickname,
+      totalScore: p.totalScore,
+      avatarIndex: p.avatarIndex,
+    }));
+}
 
 export const initSocket = (server: any) => {
   const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
@@ -78,10 +128,10 @@ export const initSocket = (server: any) => {
         const isAllowed = allowedOrigins.some(
           (co) => co === '*' || co.replace(/\/$/, '') === cleanOrigin,
         );
-        if (isAllowed || process.env.NODE_ENV !== 'production') {
-          return cb(null, true);
-        }
-        return cb(null, true); // Allow for live game (mobile browsers)
+        if (isAllowed) return cb(null, true);
+        // Allow all in dev / mobile clients
+        if (process.env.NODE_ENV !== 'production') return cb(null, true);
+        return cb(null, true);
       },
       credentials: true,
       methods: ['GET', 'POST'],
@@ -91,7 +141,7 @@ export const initSocket = (server: any) => {
     pingInterval: 25000,
   });
 
-  /* ── Cognito verifier ────────────────────────────────────────────────── */
+  /* ── Cognito verifier (optional) ───────────────────────────────────── */
   let cognitoVerifier: any = null;
   if (
     process.env.AWS_COGNITO_USER_POOL_ID &&
@@ -108,53 +158,50 @@ export const initSocket = (server: any) => {
     }
   }
 
-  /* ── Auth middleware (optional — players don't need auth) ─────────────── */
-  io.use(async (socket: any, next) => {
+  /* ── Auth middleware (optional — players don't need auth) ─────────── */
+  io.use(async (socket: Socket, next) => {
     const token = socket.handshake.auth?.token;
-    if (token) {
+    if (!token) return next();
+
+    try {
       if (cognitoVerifier) {
         try {
-          const payload = await cognitoVerifier.verify(token);
-          const email = (payload.email || '').toLowerCase();
+          const payload: any = await cognitoVerifier.verify(token);
           const UserModel = mongoose.models.User || mongoose.model('User');
           const user = await UserModel.findOne({
-            $or: [{ cognitoId: payload.sub }, { email }],
+            $or: [{ cognitoId: payload.sub }, { email: payload.email }],
           });
           if (user) {
-            socket.user = {
+            (socket as any).user = {
               id: user._id.toString(),
-              sub: user._id.toString(),
               email: user.email,
               role: user.role,
             };
-            return next();
           }
-        } catch (_) {}
+          return next();
+        } catch (_) {
+          // fall through to jwt
+        }
       }
-
-      try {
-        const decoded: any = jwt.verify(
-          token,
-          process.env.JWT_ACCESS_SECRET || 'secret',
-        );
-        socket.user = {
-          id: decoded.id || decoded.sub,
-          sub: decoded.sub || decoded.id,
-          email: decoded.email,
-          role: decoded.role,
-        };
-      } catch (_) {}
+      const decoded: any = jwt.verify(
+        token,
+        process.env.JWT_ACCESS_SECRET || 'secret',
+      );
+      (socket as any).user = {
+        id: decoded.id || decoded.sub,
+        email: decoded.email,
+        role: decoded.role,
+      };
+    } catch (_) {
+      // ignore — allow anonymous
     }
-    next(); // Allow unauthenticated connections (players)
+    return next();
   });
 
-  /* ══════════════════════════════════════════════════════════════════════ */
-  /*  CONNECTION HANDLER                                                   */
-  /* ══════════════════════════════════════════════════════════════════════ */
   io.on('connection', (socket: any) => {
     console.log('[SOCKET] New connection:', socket.id);
 
-    /* ── HOST: attach to game ──────────────────────────────────────────── */
+    /* ── HOST: attach to game ────────────────────────────────────────── */
     socket.on(
       'host:attach-game',
       async (
@@ -164,74 +211,84 @@ export const initSocket = (server: any) => {
         const cb = typeof callback === 'function' ? callback : () => {};
         try {
           const SessionModel = getSessionModel();
-          const game = await SessionModel.findById(payload.gameId);
-
+          const game: any = await SessionModel.findById(payload.gameId).lean();
           if (!game) {
-            cb({
+            return cb({
               success: false,
               code: 'GAME_NOT_FOUND',
               message: 'Không tìm thấy phòng',
             });
-            return;
           }
-
           if (game.pin !== normalizePin(payload.pin)) {
-            cb({
+            return cb({
               success: false,
               code: 'INVALID_PIN',
               message: 'Mã PIN không hợp lệ',
             });
-            return;
+          }
+          if (
+            game.status === GameSessionStatus.ENDED ||
+            game.status === GameSessionStatus.FINISHED
+          ) {
+            return cb({
+              success: false,
+              code: 'GAME_ENDED',
+              message: 'Phòng chơi đã kết thúc',
+            });
           }
 
           const gameId = game._id.toString();
           const room = getGameRoom(gameId);
-
           await socket.join(room);
+
           socket.data.role = 'host';
           socket.data.gameId = gameId;
           socket.data.pin = game.pin;
 
-          // Build current player list for Host
-          const players = game.players.map((p: any) => ({
-            playerId: p.playerId,
-            nickname: p.nickname,
-            teamName: p.teamName,
-            avatar: p.avatar,
-            avatarIndex: p.avatarIndex,
-            connected: p.connected,
-          }));
-
-          console.log('[SOCKET] Host attached to game:', gameId, 'room:', room);
-          
-          const activeGame = activeGames.get(gameId);
-          if (activeGame) {
-            activeGame.hostSocketId = socket.id;
-            let timeLeft = 0;
-            if (activeGame.questionStartTs && activeGame.questionDurationMs) {
-              timeLeft = Math.max(0, Math.floor((activeGame.questionDurationMs - (Date.now() - activeGame.questionStartTs)) / 1000));
-            }
-            cb({ 
-              success: true, 
-              gameId, 
-              players,
+          // If a game is already in progress in memory, rebind host socket
+          const existing = activeGames.get(gameId);
+          if (existing) {
+            existing.hostSocketId = socket.id;
+            const elapsedMs = Date.now() - existing.questionStartTs;
+            const remainingMs = Math.max(
+              0,
+              Math.floor((existing.questionDurationMs - elapsedMs) / 1000),
+            );
+            return cb({
+              success: true,
+              gameId,
+              players: snapshotPlayers(existing),
               gameState: 'running',
-              currentIdx: activeGame.currentIdx,
-              totalQuestions: activeGame.questions.length,
-              question: activeGame.questions[activeGame.currentIdx],
-              timeLimit: activeGame.questions[activeGame.currentIdx]?.timeLimit || 0,
-              timeLeft,
+              currentIdx: existing.currentIdx,
+              totalQuestions: existing.questions.length,
+              question: existing.questions[existing.currentIdx],
+              timeLimit:
+                existing.questions[existing.currentIdx]?.timeLimit || 0,
+              timeLeft: remainingMs,
               answerCount: {
-                answered: Object.keys(activeGame.answers[activeGame.currentIdx] || {}).length,
-                total: Object.keys(activeGame.players).length,
-              }
+                answered: Object.keys(
+                  existing.answers[existing.currentIdx] || {},
+                ).length,
+                total: Object.keys(existing.players).length,
+              },
             });
-          } else {
-            cb({ success: true, gameId, players });
           }
+
+          return cb({
+            success: true,
+            gameId,
+            players: (game.players || []).map((p: any) => ({
+              playerId: p.playerId,
+              nickname: p.nickname,
+              teamName: p.teamName,
+              avatar: p.avatar,
+              avatarIndex: p.avatarIndex,
+              connected: p.connected,
+            })),
+          });
         } catch (error: any) {
           console.error('[HOST ATTACH ERROR]', error.message);
-          cb({
+          return cb({
             success: false,
             code: 'HOST_ATTACH_FAILED',
             message: 'Không thể kết nối Host',
@@ -240,7 +297,7 @@ export const initSocket = (server: any) => {
       },
     );
 
-    /* ── PLAYER: attach to game ────────────────────────────────────────── */
+    /* ── PLAYER: attach (also used for reconnect) ───────────────────── */
     socket.on(
       'player:attach-game',
       async (
@@ -251,63 +308,56 @@ export const initSocket = (server: any) => {
         try {
           const SessionModel = getSessionModel();
           const game = await SessionModel.findById(payload.gameId);
-
           if (!game) {
-            cb({
+            return cb({
               success: false,
               code: 'GAME_NOT_FOUND',
               message: 'Không tìm thấy phòng',
             });
-            return;
           }
-
           if (game.pin !== normalizePin(payload.pin)) {
-            cb({
+            return cb({
               success: false,
               code: 'INVALID_PIN',
               message: 'Mã PIN không hợp lệ',
             });
-            return;
           }
-
-          if (game.status === 'ended' || game.status === 'finished') {
-            cb({
+          if (
+            game.status === GameSessionStatus.ENDED ||
+            game.status === GameSessionStatus.FINISHED
+          ) {
+            return cb({
               success: false,
               code: 'GAME_ENDED',
               message: 'Phòng chơi đã kết thúc',
             });
-            return;
           }
 
-          const player = game.players.find(
+          const player = (game.players || []).find(
             (item: any) => item.playerId === payload.playerId,
           );
-
           if (!player) {
-            cb({
+            return cb({
               success: false,
               code: 'PLAYER_NOT_FOUND',
               message: 'Không tìm thấy người chơi',
             });
-            return;
           }
 
-          // Update socket info
           player.socketId = socket.id;
           player.connected = true;
           await game.save();
 
           const gameId = game._id.toString();
           const room = getGameRoom(gameId);
-
           await socket.join(room);
+
           socket.data.role = 'player';
           socket.data.gameId = gameId;
           socket.data.playerId = player.playerId;
           socket.data.pin = game.pin;
 
-          // Build updated player list and broadcast to room
-          const players = game.players.map((item: any) => ({
+          const players = (game.players || []).map((item: any) => ({
             playerId: item.playerId,
             nickname: item.nickname,
             teamName: item.teamName,
@@ -315,28 +365,48 @@ export const initSocket = (server: any) => {
             avatarIndex: item.avatarIndex,
             connected: item.connected,
           }));
-
           io.to(room).emit('player-list:updated', players);
 
-          console.log(
-            '[SOCKET] Player attached:',
-            player.playerId,
-            'to game:',
-            gameId,
-          );
-          cb({ success: true, gameId, playerId: player.playerId });
+          // Re-attach in-memory state if game is active
+          const gameState = activeGames.get(gameId);
+          if (gameState && !gameState.players[socket.id]) {
+            // Re-create player state from DB
+            const restored: PlayerState = {
+              socketId: socket.id,
+              playerId: player.playerId,
+              userId: null,
+              nickname: player.nickname,
+              avatarIndex: player.avatarIndex ?? 0,
+              teamName: player.teamName || null,
+              totalScore: player.totalScore || 0,
+              streak: player.streak || 0,
+              answers: (player.answers || []).map((a: any) => ({
+                questionId: a.questionId,
+                selectedOption: a.selectedOption,
+                isCorrect: a.isCorrect,
+                pointsEarned: a.pointsEarned,
+                timeSpent: a.timeSpent,
+              })),
+              powerUps: { ...DEFAULT_POWERUPS },
+              activePowerUp: null,
+            };
+            gameState.players[socket.id] = restored;
+            gameState.playerByPlayerId[player.playerId] = restored;
+          }
+
+          return cb({ success: true, gameId, playerId: player.playerId });
         } catch (error: any) {
           console.error('[PLAYER ATTACH ERROR]', error.message);
-          cb({
+          return cb({
             success: false,
             code: 'PLAYER_ATTACH_FAILED',
-            message: 'Không thể kết nối người chơi với phòng',
+            message: 'Không thể kết nối người chơi',
           });
         }
       },
     );
 
-    /* ── HOST: start game ──────────────────────────────────────────────── */
+    /* ── HOST: start ────────────────────────────────────────────────── */
     socket.on('host:start', async () => {
       const gameId = socket.data.gameId;
       if (!gameId || socket.data.role !== 'host') return;
@@ -348,36 +418,52 @@ export const initSocket = (server: any) => {
         const session = await SessionModel.findById(gameId);
         if (!session) return;
 
-        session.status = 'active';
+        session.status = GameSessionStatus.ACTIVE;
         session.startedAt = new Date();
         await session.save();
 
-        // Load questions
-        const questions = await QuestionModel.find({ quizId: session.quizId })
+        const questions = await QuestionModel.find({
+          quizId: session.quizId,
+        })
           .sort({ order: 1 })
           .lean();
 
-        // Build in-memory game state for scoring
-        const playerMap: Record<string, any> = {};
-        for (const p of session.players) {
-          if (p.socketId) {
-            playerMap[p.socketId] = {
-              socketId: p.socketId,
-              playerId: p.playerId,
-              userId: null,
-              nickname: p.nickname,
-              avatarIndex: p.avatarIndex ?? 0,
-              totalScore: 0,
-              streak: 0,
-              answers: [],
-              powerUps: { ...DEFAULT_POWERUPS },
-              activePowerUp: null,
-              teamName: p.teamName || null,
-            };
+        const playerMap: Record<string, PlayerState> = {};
+        const byPlayerId: Record<string, PlayerState> = {};
+        for (const p of session.players || []) {
+          // Bind by current socket.id if attached, else leave socketId null
+          let socketId: string | null = p.socketId || null;
+          if (!socketId) {
+            const sockets = Array.from(io.sockets.sockets.values()) as any[];
+            const match = sockets.find(
+              (s) =>
+                s.data?.role === 'player' &&
+                s.data?.playerId === p.playerId &&
+                s.data?.gameId === gameId,
+            );
+            socketId = match?.id || null;
+          }
+
+          const state: PlayerState = {
+            socketId,
+            playerId: p.playerId,
+            userId: null,
+            nickname: p.nickname,
+            avatarIndex: p.avatarIndex ?? 0,
+            teamName: p.teamName || null,
+            totalScore: p.totalScore || 0,
+            streak: p.streak || 0,
+            answers: [],
+            powerUps: { ...DEFAULT_POWERUPS },
+            activePowerUp: null,
+          };
+          if (socketId) {
+            playerMap[socketId] = state;
+            byPlayerId[p.playerId] = state;
           }
         }
 
-        const game = {
+        const game: GameState = {
           sessionId: gameId,
           pin: session.pin,
           hostId: session.hostId,
@@ -385,24 +471,61 @@ export const initSocket = (server: any) => {
           questions,
           currentIdx: -1,
           players: playerMap,
-          answers: {} as Record<number, Record<string, any>>,
-          status: 'active' as string,
-          questionTimer: null as any,
+          playerByPlayerId: byPlayerId,
+          answers: {},
+          status: GameSessionStatus.ACTIVE,
+          questionTimer: null,
           questionStartTs: 0,
           questionDurationMs: 0,
+          paused: false,
         };
-
         activeGames.set(gameId, game);
 
+        // Update totalQuestions
+        session.totalQuestions = questions.length;
+        await session.save();
+
         const room = getGameRoom(gameId);
-        io.to(room).emit('game:started');
-        sendNextQuestion(gameId);
+        io.to(room).emit('game:started', {
+          gameId,
+          totalQuestions: questions.length,
+        });
+        void sendNextQuestion(gameId);
       } catch (err: any) {
         console.error('[HOST START ERROR]', err.message);
       }
     });
 
-    /* ── HOST: next question manually ──────────────────────────────────── */
+    /* ── HOST: pause / resume ───────────────────────────────────────── */
+    socket.on('host:pause', () => {
+      const gameId = socket.data.gameId;
+      const game = activeGames.get(gameId);
+      if (!game || game.hostSocketId !== socket.id) return;
+      if (game.status !== GameSessionStatus.ACTIVE) return;
+      clearTimeout(game.questionTimer);
+      game.status = GameSessionStatus.PAUSED;
+      game.paused = true;
+      io.to(getGameRoom(gameId)).emit('game:paused');
+    });
+
+    socket.on('host:resume', () => {
+      const gameId = socket.data.gameId;
+      const game = activeGames.get(gameId);
+      if (!game || game.hostSocketId !== socket.id) return;
+      if (game.status !== GameSessionStatus.PAUSED) return;
+      game.paused = false;
+      game.status = GameSessionStatus.ACTIVE;
+      // Resume timer
+      const elapsedMs = Date.now() - game.questionStartTs;
+      const remainingMs = Math.max(0, game.questionDurationMs - elapsedMs);
+      game.questionTimer = setTimeout(
+        () => endQuestion(gameId),
+        remainingMs + 1000,
+      );
+      io.to(getGameRoom(gameId)).emit('game:resumed');
+    });
+
+    /* ── HOST: skip time / next / end ───────────────────────────────── */
     socket.on('host:skip_time', () => {
       const gameId = socket.data.gameId;
       const game = activeGames.get(gameId);
@@ -415,19 +538,18 @@ export const initSocket = (server: any) => {
       const gameId = socket.data.gameId;
       const game = activeGames.get(gameId);
       if (!game || game.hostSocketId !== socket.id) return;
-      sendNextQuestion(gameId);
+      void sendNextQuestion(gameId);
     });
 
-    /* ── HOST: end game early ──────────────────────────────────────────── */
     socket.on('host:end_game', () => {
       const gameId = socket.data.gameId;
       const game = activeGames.get(gameId);
       if (!game || game.hostSocketId !== socket.id) return;
       clearTimeout(game.questionTimer);
-      endGame(gameId);
+      void endGame(gameId);
     });
 
-    /* ── PLAYER: submit answer ─────────────────────────────────────────── */
+    /* ── PLAYER: submit answer ───────────────────────────────────────── */
     socket.on(
       'player:answer',
       ({
@@ -439,7 +561,7 @@ export const initSocket = (server: any) => {
       }) => {
         const gameId = socket.data.gameId;
         const game = activeGames.get(gameId);
-        if (!game || game.status !== 'active') return;
+        if (!game || game.status !== GameSessionStatus.ACTIVE) return;
 
         const player = game.players[socket.id];
         if (!player) return;
@@ -451,19 +573,20 @@ export const initSocket = (server: any) => {
         game.answers[idx][socket.id] = { optionIndex, timeSpent };
 
         const q = game.questions[idx];
-        const correct = q.options[optionIndex]?.isCorrect || false;
+        const opts: any[] = q.options || [];
+        const isCorrect = !!opts[optionIndex]?.isCorrect;
+
         const useDouble = player.activePowerUp === 'double_points';
         const earned = calculateScore(
-          correct,
-          timeSpent,
-          q.timeLimit,
-          q.points,
+          isCorrect,
+          Number(timeSpent) || 0,
+          q.timeLimit || 30,
+          q.points || 1000,
           player.streak,
           useDouble,
         );
         player.activePowerUp = null;
-
-        if (correct) {
+        if (isCorrect) {
           player.streak++;
         } else {
           player.streak = 0;
@@ -472,18 +595,18 @@ export const initSocket = (server: any) => {
         player.answers.push({
           questionId: q._id,
           selectedOption: optionIndex,
-          isCorrect: correct,
+          isCorrect,
           pointsEarned: earned,
-          timeSpent,
+          timeSpent: Number(timeSpent) || 0,
         });
 
         socket.emit('player:answer_ack', {
-          isCorrect: correct,
+          isCorrect,
           pointsEarned: earned,
           totalScore: player.totalScore,
         });
 
-        // Notify host of answer count
+        // Tell host about answer count
         const answered = Object.keys(game.answers[idx]).length;
         const total = Object.keys(game.players).length;
         if (game.hostSocketId) {
@@ -493,19 +616,18 @@ export const initSocket = (server: any) => {
           });
         }
 
-        // Auto-advance if everyone answered
-        if (answered >= total) {
+        if (total > 0 && answered >= total) {
           clearTimeout(game.questionTimer);
           endQuestion(gameId);
         }
       },
     );
 
-    /* ── PLAYER: use power-up ──────────────────────────────────────────── */
+    /* ── PLAYER: power-ups ───────────────────────────────────────────── */
     socket.on('player:powerup', ({ type }: { type: string }) => {
       const gameId = socket.data.gameId;
       const game = activeGames.get(gameId);
-      if (!game || game.status !== 'active') return;
+      if (!game || game.status !== GameSessionStatus.ACTIVE) return;
       const player = game.players[socket.id];
       if (!player || !player.powerUps[type] || player.powerUps[type] <= 0)
         return;
@@ -523,7 +645,7 @@ export const initSocket = (server: any) => {
       }
 
       if (type === 'fifty_fifty') {
-        const wrongIndices = q.options
+        const wrongIndices = (q.options || [])
           .map((o: any, i: number) => (!o.isCorrect ? i : null))
           .filter((i: any) => i !== null);
         const toRemove = wrongIndices
@@ -533,18 +655,20 @@ export const initSocket = (server: any) => {
       }
 
       if (type === 'extra_time') {
-        const elapsedMs = Date.now() - game.questionStartTs;
-        const remainingMs = game.questionDurationMs - elapsedMs;
+        const remainingMs = Math.max(
+          0,
+          game.questionDurationMs - (Date.now() - game.questionStartTs),
+        );
         const newRemainingMs = remainingMs + 15000;
         game.questionDurationMs += 15000;
 
         clearTimeout(game.questionTimer);
-        game.questionTimer = setTimeout(() => {
-          endQuestion(gameId);
-        }, newRemainingMs + 2000);
+        game.questionTimer = setTimeout(
+          () => endQuestion(gameId),
+          newRemainingMs + 1000,
+        );
 
-        const room = getGameRoom(gameId);
-        io.to(room).emit('game:extra_time', {
+        io.to(getGameRoom(gameId)).emit('game:extra_time', {
           nickname: player.nickname,
           seconds: 15,
         });
@@ -555,17 +679,16 @@ export const initSocket = (server: any) => {
       }
     });
 
-    /* ── Disconnect ────────────────────────────────────────────────────── */
+    /* ── Disconnect ─────────────────────────────────────────────────── */
     socket.on('disconnect', async () => {
       const { gameId, playerId, role } = socket.data;
-      console.log('[SOCKET] Disconnected:', socket.id, 'role:', role);
+      console.log('[SOCKET] Disconnect:', socket.id, 'role:', role);
 
       if (!gameId) return;
 
-      if (role === 'player' && playerId) {
-        // Mark player as disconnected in MongoDB (don't delete)
-        try {
-          const SessionModel = getSessionModel();
+      try {
+        const SessionModel = getSessionModel();
+        if (role === 'player' && playerId) {
           await SessionModel.updateOne(
             { _id: gameId, 'players.playerId': playerId },
             {
@@ -575,20 +698,14 @@ export const initSocket = (server: any) => {
               },
             },
           );
-
-          // Also update in-memory if game is active
+          // Remove from in-memory state (but keep playerByPlayerId for rejoin)
           const game = activeGames.get(gameId);
-          if (game && game.players[socket.id]) {
-            const p = game.players[socket.id];
+          if (game) {
             delete game.players[socket.id];
-            // Keep player data accessible by playerId for reconnection
           }
-
-          // Emit updated player list
-          const room = getGameRoom(gameId);
-          const session = await SessionModel.findById(gameId).lean();
+          const session: any = await SessionModel.findById(gameId).lean();
           if (session) {
-            const players = (session as any).players.map((item: any) => ({
+            const players = (session.players || []).map((item: any) => ({
               playerId: item.playerId,
               nickname: item.nickname,
               teamName: item.teamName,
@@ -596,19 +713,19 @@ export const initSocket = (server: any) => {
               avatarIndex: item.avatarIndex,
               connected: item.connected,
             }));
-            io.to(room).emit('player-list:updated', players);
+            io.to(getGameRoom(gameId)).emit('player-list:updated', players);
           }
-        } catch (err: any) {
-          console.error('[DISCONNECT] Error updating player:', err.message);
         }
-      }
 
-      if (role === 'host') {
-        const game = activeGames.get(gameId);
-        if (game) {
-          game.hostSocketId = ''; // Mark host as disconnected but keep game alive
-          console.log('[SOCKET] Host disconnected but game is kept alive:', gameId);
+        if (role === 'host') {
+          const game = activeGames.get(gameId);
+          if (game) {
+            game.hostSocketId = '';
+            io.to(getGameRoom(gameId)).emit('game:host_left');
+          }
         }
+      } catch (err: any) {
+        console.error('[DISCONNECT]', err.message);
       }
     });
   });
@@ -616,9 +733,9 @@ export const initSocket = (server: any) => {
   return io;
 };
 
-/* ══════════════════════════════════════════════════════════════════════════ */
-/*  GAME PLAY HELPERS                                                       */
-/* ══════════════════════════════════════════════════════════════════════════ */
+/* ═════════════════════════════════════════════════════════════════════════
+   GAME PLAY HELPERS
+   ═════════════════════════════════════════════════════════════════════════ */
 
 function sendNextQuestion(gameId: string) {
   const game = activeGames.get(gameId);
@@ -633,7 +750,6 @@ function sendNextQuestion(gameId: string) {
   const total = game.questions.length;
   const room = getGameRoom(gameId);
 
-  // Send to host (includes correct answers)
   if (game.hostSocketId) {
     io.to(game.hostSocketId).emit('host:question', {
       index: game.currentIdx,
@@ -643,34 +759,33 @@ function sendNextQuestion(gameId: string) {
     });
   }
 
-  // Send to players (NO isCorrect field)
   const playerQuestion = {
     index: game.currentIdx,
     total,
+    questionId: q._id?.toString?.() || q.id,
     content: q.content,
     imageUrl: q.imageUrl,
     type: q.type,
     timeLimit: q.timeLimit,
     points: q.points,
-    options: q.options.map((o: any, i: number) => ({
+    options: (q.options || []).map((o: any, i: number) => ({
       text: o.text,
       imageUrl: o.imageUrl,
       index: i,
-      color: ANSWER_COLORS[i],
+      color: ANSWER_COLORS[i] || '#999',
     })),
   };
 
   io.to(room).emit('game:question', playerQuestion);
 
   game.questionStartTs = Date.now();
-  game.questionDurationMs = q.timeLimit * 1000;
+  game.questionDurationMs = (q.timeLimit || 30) * 1000;
 
-  // Auto-advance after timeLimit + 2s buffer
-  game.questionTimer = setTimeout(() => {
-    endQuestion(gameId);
-  }, game.questionDurationMs + 2000);
+  game.questionTimer = setTimeout(
+    () => endQuestion(gameId),
+    game.questionDurationMs + 1500,
+  );
 
-  // Update DB
   void (async () => {
     try {
       const SessionModel = getSessionModel();
@@ -689,18 +804,8 @@ function endQuestion(gameId: string) {
   const q = game.questions[idx];
   const room = getGameRoom(gameId);
 
-  // Build leaderboard
-  const leaderboard = Object.values(game.players)
-    .sort((a: any, b: any) => b.totalScore - a.totalScore)
-    .slice(0, 10)
-    .map((p: any, i: number) => ({
-      rank: i + 1,
-      nickname: p.nickname,
-      totalScore: p.totalScore,
-      avatarIndex: p.avatarIndex,
-    }));
-
-  const correctOptions = q.options
+  const leaderboard = sortLeaderboard(game).slice(0, 10);
+  const correctOptions = (q.options || [])
     .map((o: any, i: number) => (o.isCorrect ? i : null))
     .filter((i: any) => i !== null);
 
@@ -717,80 +822,90 @@ async function endGame(gameId: string) {
   if (!game) return;
 
   const room = getGameRoom(gameId);
-
   const finalLeaderboard = Object.values(game.players)
-    .sort((a: any, b: any) => b.totalScore - a.totalScore)
-    .map((p: any, i: number) => ({ ...p, rank: i + 1 }));
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .map((p, i) => ({
+      rank: i + 1,
+      playerId: p.playerId,
+      nickname: p.nickname,
+      teamName: p.teamName,
+      avatarIndex: p.avatarIndex,
+      totalScore: p.totalScore,
+      streak: p.streak,
+      answers: p.answers,
+    }));
 
-  // Team leaderboard
   const teamMap: Record<string, any> = {};
   for (const p of finalLeaderboard) {
     if (!p.teamName) continue;
-    if (!teamMap[p.teamName])
+    if (!teamMap[p.teamName]) {
       teamMap[p.teamName] = {
         teamName: p.teamName,
         totalScore: 0,
         members: 0,
       };
+    }
     teamMap[p.teamName].totalScore += p.totalScore;
     teamMap[p.teamName].members++;
   }
   const teamLeaderboard = Object.values(teamMap)
-    .sort((a: any, b: any) => b.totalScore - a.totalScore)
-    .map((t: any, i: number) => ({ ...t, rank: i + 1 }));
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .map((t, i) => ({ ...t, rank: i + 1 }));
 
   io.to(room).emit('game:ended', {
     leaderboard: finalLeaderboard,
     teamLeaderboard,
   });
 
-  // Persist to DB + award achievements
   try {
     const SessionModel = getSessionModel();
-    const AchievementModel =
-      mongoose.models.Achievement || mongoose.model('Achievement');
-
-    await SessionModel.findByIdAndUpdate(gameId, {
-      status: 'finished',
-      endedAt: new Date(),
-      currentQuestionIndex: game.currentIdx,
-      players: finalLeaderboard.map((p: any) => ({
+    const session = await SessionModel.findById(gameId);
+    if (session) {
+      session.status = GameSessionStatus.FINISHED;
+      session.endedAt = new Date();
+      session.currentQuestionIndex = game.currentIdx;
+      session.players = finalLeaderboard.map((p) => ({
         playerId: p.playerId,
-        socketId: p.socketId,
+        socketId: null,
         nickname: p.nickname,
         avatarIndex: p.avatarIndex,
-        avatar: p.avatar || '😀',
+        avatar: '😀',
         teamName: p.teamName || '',
         connected: false,
         totalScore: p.totalScore,
         rank: p.rank,
         streak: p.streak,
         answers: p.answers,
-      })),
-    });
-
-    // Award achievements
-    for (const p of finalLeaderboard) {
-      if (!p.userId) continue;
-      if (p.rank === 1)
-        await awardAchievement(AchievementModel, p.userId, 'centurion');
-      if (p.streak >= 5)
-        await awardAchievement(AchievementModel, p.userId, 'streak_5');
-      const fast = p.answers.some(
-        (a: any) => a.timeSpent < 3000 && a.isCorrect,
-      );
-      if (fast)
-        await awardAchievement(AchievementModel, p.userId, 'speed_demon');
+      }));
+      await session.save();
     }
-    if (finalLeaderboard.length >= 20) {
+
+    const AchievementModel = getAchievementModel();
+    if (AchievementModel) {
       for (const p of finalLeaderboard) {
-        if (p.userId)
-          await awardAchievement(AchievementModel, p.userId, 'social');
+        if (!p.playerId) continue;
+        if (p.rank === 1)
+          await awardAchievement(AchievementModel, p.playerId, 'centurion');
+        if (p.streak >= 5)
+          await awardAchievement(AchievementModel, p.playerId, 'streak_5');
+        const fast = p.answers.some(
+          (a: any) => a.timeSpent < 3000 && a.isCorrect,
+        );
+        if (fast)
+          await awardAchievement(AchievementModel, p.playerId, 'speed_demon');
+      }
+      if (finalLeaderboard.length >= 20) {
+        for (const p of finalLeaderboard) {
+          if (p.playerId)
+            await awardAchievement(AchievementModel, p.playerId, 'social');
+        }
       }
     }
   } catch (err: any) {
-    console.error('[Socket] Failed to persist game session:', err.message);
+    console.error('[Socket] persist final game failed:', err.message);
   }
 
   activeGames.delete(gameId);
 }
+
+export { activeGames, endGame };

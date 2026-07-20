@@ -1,11 +1,16 @@
 import api from './axios'
 
-export const createSession = (data) => api.post('/sessions', data).then((r) => r.data)
-export const joinSession = (data) => api.post('/sessions/join', data).then((r) => r.data)
-export const getSessionByPin = (pin) => api.get(`/sessions/pin/${pin}`).then((r) => r.data)
-export const getMyHistory = () => api.get('/sessions/history').then((r) => r.data)
-export const getSessionResult = (id) => api.get(`/sessions/${id}/result`).then((r) => r.data)
+export const createSession = (data) =>
+  api.post('/game-sessions', data).then((r) => r.data)
 
-export const presignUpload = (data) => api.post('/upload/presign', data).then((r) => r.data)
-export const getAnalytics = () => api.get('/analytics/dashboard').then((r) => r.data)
-export const getCategories = () => api.get('/categories').then((r) => r.data)
+export const joinSession = (data) =>
+  api.post('/game-sessions/join', data).then((r) => r.data)
+
+export const getSessionByPin = (pin) =>
+  api.get(`/game-sessions/pin/${pin}`).then((r) => r.data)
+
+export const getMyHistory = () =>
+  api.get('/game-sessions/history').then((r) => r.data)
+
+export const getSessionResult = (id) =>
+  api.get(`/game-sessions/${id}/result`).then((r) => r.data)

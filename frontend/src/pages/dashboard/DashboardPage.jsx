@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Zap, BookOpen, Users, Plus, Play } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getAnalytics } from '../../api/game.api'
+import { getAnalytics } from '../../api/upload.api'
 import { getMyQuizzes } from '../../api/quizzes.api'
 import useAuthStore from '../../store/useAuthStore'
 

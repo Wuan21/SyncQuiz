@@ -3,6 +3,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as path from 'path';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard } from '@nestjs/throttler';
+
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { QuizzesModule } from './quizzes/quizzes.module';
@@ -13,7 +16,6 @@ import { LiveModule } from './live/live.module';
 import { UploadModule } from './upload/upload.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthModule } from './health/health.module';
-
 import { AiModule } from './ai/ai.module';
 import { QuestionsModule } from './questions/questions.module';
 
@@ -21,18 +23,25 @@ import { QuestionsModule } from './questions/questions.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: path.resolve(__dirname, '..', '.env'),
+      envFilePath: [
+        path.resolve(process.cwd(), '.env'),
+        path.resolve(__dirname, '..', '..', '.env'),
+      ],
     }),
 
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
         uri: config.get<string>('MONGODB_URI'),
+        dbName: config.get<string>('MONGODB_DB_NAME') || 'syncquiz',
       }),
       inject: [ConfigService],
     }),
 
-    ThrottlerModule.forRoot([{ name: 'short', ttl: 60000, limit: 100 }]),
+    ThrottlerModule.forRoot([
+      { name: 'short', ttl: 60_000, limit: 100 },
+      { name: 'long', ttl: 60_000, limit: 20 },
+    ]),
 
     AuthModule,
     UsersModule,
@@ -47,5 +56,6 @@ import { QuestionsModule } from './questions/questions.module';
     HealthModule,
     AiModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

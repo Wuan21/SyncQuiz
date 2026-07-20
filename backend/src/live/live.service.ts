@@ -12,10 +12,11 @@ import { randomUUID } from 'crypto';
 import {
   GameSession,
   GameSessionDocument,
+  GameSessionStatus,
 } from './schemas/game-session.schema';
 import { Quiz, QuizDocument } from '../quizzes/schemas/quiz.schema';
 
-/* ── Helpers ─────────────────────────────────────────────────────────────── */
+const AVATARS = ['😀', '🐶', '🦊', '🐱', '🐸', '🦄', '🐙', '🦋', '🎃', '🚀'];
 
 export function normalizePin(value: any): string {
   return String(value ?? '')
@@ -23,7 +24,28 @@ export function normalizePin(value: any): string {
     .trim();
 }
 
-const AVATARS = ['😀', '🐶', '🦊', '🐱', '🐸', '🦄', '🐙', '🦋', '🎃', '🚀'];
+export function isValidPin(pin: string): boolean {
+  return /^\d{6}$/.test(pin);
+}
+
+export function calculateScore(
+  isCorrect: boolean,
+  timeSpentMs: number,
+  timeLimitSec: number,
+  points: number,
+  streak: number,
+  doublePoints = false,
+): number {
+  if (!isCorrect) return 0;
+  const ratio = Math.max(
+    0,
+    Math.min(1, 1 - timeSpentMs / (timeLimitSec * 1000)),
+  );
+  const base = Math.round(points * (0.5 + 0.5 * ratio));
+  const bonus = streak >= 3 ? Math.round(base * 0.1 * Math.min(streak, 5)) : 0;
+  const total = base + bonus;
+  return doublePoints ? total * 2 : total;
+}
 
 @Injectable()
 export class LiveService {
@@ -34,24 +56,29 @@ export class LiveService {
     private readonly quizModel: Model<QuizDocument>,
   ) {}
 
-  /* ── Generate unique 6-digit PIN ───────────────────────────────────────── */
+  /* ── Generate unique 6-digit PIN ─────────────────────────────────────── */
   private async generateUniquePin(): Promise<string> {
     for (let attempt = 0; attempt < 20; attempt++) {
       const pin = String(Math.floor(100000 + Math.random() * 900000));
       const exists = await this.sessionModel.exists({
         pin,
-        status: { $ne: 'ended' },
-        expiresAt: { $gt: new Date() },
+        status: {
+          $nin: [GameSessionStatus.ENDED, GameSessionStatus.FINISHED],
+        },
       });
       if (!exists) return pin;
     }
     throw new HttpException(
-      'PIN_GENERATION_FAILED',
+      {
+        success: false,
+        code: 'PIN_GENERATION_FAILED',
+        message: 'Không thể tạo mã PIN',
+      },
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
   }
 
-  /* ── Create game session (Host) ────────────────────────────────────────── */
+  /* ── Create session (host) ───────────────────────────────────────────── */
   async createSession(
     hostId: string,
     dto: {
@@ -61,46 +88,56 @@ export class LiveService {
     },
   ) {
     if (!hostId) {
-      throw new ForbiddenException('User unauthenticated');
+      throw new ForbiddenException({
+        success: false,
+        code: 'UNAUTHENTICATED',
+        message: 'Người dùng chưa đăng nhập',
+      });
+    }
+    if (!dto?.quizId || !Types.ObjectId.isValid(dto.quizId)) {
+      throw new BadRequestException({
+        success: false,
+        code: 'INVALID_QUIZ_ID',
+        message: 'Quiz ID không hợp lệ',
+      });
     }
 
-    const quiz: any = await this.quizModel.findById(dto.quizId).lean();
+    const quiz = await this.quizModel.findById(dto.quizId).lean();
     if (!quiz || quiz.isDeleted) {
-      throw new NotFoundException('Quiz not found');
+      throw new NotFoundException({
+        success: false,
+        code: 'QUIZ_NOT_FOUND',
+        message: 'Không tìm thấy quiz',
+      });
     }
 
-    // Allow hosting if quiz is public OR host is the owner
     const isOwner = quiz.ownerId?.toString() === hostId.toString();
-    if (quiz.isPublic === false && !isOwner) {
-      throw new ForbiddenException(
-        'Bạn chỉ có thể host bộ câu hỏi của chính mình hoặc bộ câu hỏi công khai',
-      );
+    if (quiz.visibility === 'private' && !isOwner) {
+      throw new ForbiddenException({
+        success: false,
+        code: 'FORBIDDEN',
+        message: 'Bạn chỉ có thể host quiz của chính mình',
+      });
     }
 
     const pin = await this.generateUniquePin();
-    const expiresAt = new Date(Date.now() + 3 * 60 * 60 * 1000); // 3 hours
+    const expiresAt = new Date(Date.now() + 3 * 60 * 60 * 1000);
 
     const session = await this.sessionModel.create({
       pin,
-      quizId: quiz._id,
+      quizId: new Types.ObjectId(dto.quizId),
       hostId: hostId.toString(),
-      status: 'waiting',
+      status: GameSessionStatus.WAITING,
       players: [],
       currentQuestionIndex: -1,
-      totalQuestions: quiz.questionCount || 0,
+      totalQuestions: 0,
       expiresAt,
       settings: {
+        showLeaderboard: true,
         shuffleQuestions:
           dto.shuffleQuestions ?? quiz.shuffleQuestions ?? false,
         shuffleAnswers: dto.shuffleAnswers ?? quiz.shuffleAnswers ?? false,
       },
-    });
-
-    console.log('[LIVE SERVICE] Created game session:', {
-      id: session._id.toString(),
-      pin: session.pin,
-      status: session.status,
-      hostId,
     });
 
     return {
@@ -110,11 +147,12 @@ export class LiveService {
         pin: session.pin,
         status: session.status,
         expiresAt: session.expiresAt,
+        quizId: session.quizId.toString(),
       },
     };
   }
 
-  /* ── Player join game (REST) ───────────────────────────────────────────── */
+  /* ── Player join ────────────────────────────────────────────────────── */
   async joinSession(dto: {
     pin: string;
     nickname: string;
@@ -124,17 +162,15 @@ export class LiveService {
     const pin = normalizePin(dto.pin);
     const nickname = String(dto.nickname ?? '').trim();
     const teamName = String(dto.teamName ?? '').trim();
-    const avatar = String(dto.avatar ?? '😀').trim();
+    const avatar = String(dto.avatar || AVATARS[0]).trim();
 
-    // Validate PIN format
-    if (!/^\d{6}$/.test(pin)) {
+    if (!isValidPin(pin)) {
       throw new BadRequestException({
         success: false,
         code: 'INVALID_PIN',
         message: 'Mã PIN phải gồm 6 chữ số',
       });
     }
-
     if (!nickname) {
       throw new BadRequestException({
         success: false,
@@ -142,18 +178,23 @@ export class LiveService {
         message: 'Vui lòng nhập nickname',
       });
     }
+    if (nickname.length > 30) {
+      throw new BadRequestException({
+        success: false,
+        code: 'NICKNAME_TOO_LONG',
+        message: 'Nickname tối đa 30 ký tự',
+      });
+    }
 
-    // Query by PIN first (don't filter by status yet)
     let game: any;
     try {
       game = await this.sessionModel.findOne({ pin });
     } catch (err: any) {
-      console.error('[LIVE SERVICE] DB error in joinSession:', err.message);
       throw new HttpException(
         {
           success: false,
           code: 'JOIN_GAME_FAILED',
-          message: 'Không thể tham gia phòng chơi',
+          message: 'Không thể truy vấn phòng chơi',
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -164,7 +205,7 @@ export class LiveService {
         {
           success: false,
           code: 'GAME_NOT_FOUND',
-          message: 'Không tìm thấy phòng chơi với mã PIN này',
+          message: 'Không tìm thấy phòng chơi',
         },
         HttpStatus.NOT_FOUND,
       );
@@ -181,7 +222,10 @@ export class LiveService {
       );
     }
 
-    if (game.status === 'ended' || game.status === 'finished') {
+    if (
+      game.status === GameSessionStatus.ENDED ||
+      game.status === GameSessionStatus.FINISHED
+    ) {
       throw new HttpException(
         {
           success: false,
@@ -192,35 +236,32 @@ export class LiveService {
       );
     }
 
-    if (game.status !== 'waiting') {
+    if (game.status !== GameSessionStatus.WAITING) {
       throw new HttpException(
         {
           success: false,
           code: 'GAME_ALREADY_STARTED',
-          message: 'Game đã bắt đầu',
+          message: 'Trò chơi đã bắt đầu',
         },
         HttpStatus.CONFLICT,
       );
     }
 
-    // Check duplicate nickname in this game
-    const nickTaken = game.players.some(
-      (p: any) => p.nickname.toLowerCase() === nickname.toLowerCase(),
+    const nickTaken = (game.players || []).some(
+      (p: any) => (p.nickname || '').toLowerCase() === nickname.toLowerCase(),
     );
     if (nickTaken) {
       throw new HttpException(
         {
           success: false,
           code: 'NICKNAME_TAKEN',
-          message: 'Nickname này đã có người sử dụng',
+          message: 'Nickname đã có người sử dụng',
         },
         HttpStatus.CONFLICT,
       );
     }
 
-    // Determine avatarIndex from avatar string
     const avatarIndex = AVATARS.indexOf(avatar);
-
     const playerId = randomUUID();
 
     game.players.push({
@@ -232,16 +273,12 @@ export class LiveService {
       socketId: null,
       connected: false,
       joinedAt: new Date(),
+      totalScore: 0,
+      rank: 0,
+      streak: 0,
+      answers: [],
     });
-
     await game.save();
-
-    console.log('[LIVE SERVICE] Player joined:', {
-      pin,
-      playerId,
-      nickname,
-      gameId: game._id.toString(),
-    });
 
     return {
       success: true,
@@ -250,14 +287,17 @@ export class LiveService {
         playerId,
         pin: game.pin,
         status: game.status,
+        nickname,
+        avatar,
+        teamName,
       },
     };
   }
 
-  /* ── Get session by PIN (for validation) ───────────────────────────────── */
+  /* ── Lookup by PIN ──────────────────────────────────────────────────── */
   async getByPin(pin: string) {
     const normalizedPin = normalizePin(pin);
-    if (!normalizedPin) {
+    if (!isValidPin(normalizedPin)) {
       throw new BadRequestException({
         success: false,
         code: 'INVALID_PIN',
@@ -267,18 +307,19 @@ export class LiveService {
 
     const session: any = await this.sessionModel
       .findOne({ pin: normalizedPin })
-      .populate('quizId', 'title coverImageUrl')
       .lean();
-
     if (!session) {
       throw new NotFoundException({
         success: false,
         code: 'GAME_NOT_FOUND',
-        message: 'Không tìm thấy phòng chơi với mã PIN này',
+        message: 'Không tìm thấy phòng chơi',
       });
     }
 
-    if (session.status === 'finished' || session.status === 'ended') {
+    if (
+      session.status === GameSessionStatus.FINISHED ||
+      session.status === GameSessionStatus.ENDED
+    ) {
       throw new HttpException(
         {
           success: false,
@@ -289,33 +330,116 @@ export class LiveService {
       );
     }
 
-    return session;
+    return {
+      success: true,
+      data: {
+        pin: session.pin,
+        status: session.status,
+        gameId: session._id.toString(),
+        quizId: session.quizId?.toString?.() || session.quizId,
+        players: (session.players || []).map((p: any) => ({
+          playerId: p.playerId,
+          nickname: p.nickname,
+          teamName: p.teamName,
+          avatar: p.avatar,
+          connected: p.connected,
+        })),
+      },
+    };
   }
 
-  /* ── Host history ──────────────────────────────────────────────────────── */
   async getMyHistory(hostId: string) {
-    return this.sessionModel
+    const items = await this.sessionModel
       .find({ hostId: hostId.toString() })
       .sort({ createdAt: -1 })
       .limit(20)
-      .populate('quizId', 'title coverImageUrl')
       .lean();
+
+    return {
+      success: true,
+      data: items.map((s: any) => ({
+        id: s._id?.toString?.(),
+        pin: s.pin,
+        status: s.status,
+        quizId: s.quizId?.toString?.() || s.quizId,
+        playerCount: (s.players || []).length,
+        startedAt: s.startedAt,
+        endedAt: s.endedAt,
+        createdAt: s.createdAt,
+      })),
+    };
   }
 
-  /* ── Get result ────────────────────────────────────────────────────────── */
   async getResult(sessionId: string, userId: string) {
-    const session: any = await this.sessionModel
-      .findById(sessionId)
-      .populate('quizId', 'title coverImageUrl')
-      .lean();
-
-    if (!session) throw new NotFoundException('Session not found');
-    if (
-      session.hostId?.toString() !== userId &&
-      session.status !== 'finished'
-    ) {
-      throw new ForbiddenException('Access denied');
+    if (!Types.ObjectId.isValid(sessionId)) {
+      throw new NotFoundException({
+        success: false,
+        code: 'SESSION_NOT_FOUND',
+        message: 'Không tìm thấy phiên chơi',
+      });
     }
-    return session;
+    const session: any = await this.sessionModel.findById(sessionId).lean();
+    if (!session) {
+      throw new NotFoundException({
+        success: false,
+        code: 'SESSION_NOT_FOUND',
+        message: 'Không tìm thấy phiên chơi',
+      });
+    }
+    const isOwner = session.hostId?.toString() === userId.toString();
+    if (!isOwner && session.status !== GameSessionStatus.FINISHED) {
+      throw new ForbiddenException({
+        success: false,
+        code: 'FORBIDDEN',
+        message: 'Bạn không có quyền xem kết quả',
+      });
+    }
+    return {
+      success: true,
+      data: {
+        id: session._id.toString(),
+        pin: session.pin,
+        status: session.status,
+        quizId: session.quizId?.toString?.() || session.quizId,
+        hostId: session.hostId,
+        players: (session.players || []).map((p: any) => ({
+          playerId: p.playerId,
+          nickname: p.nickname,
+          teamName: p.teamName,
+          avatar: p.avatar,
+          avatarIndex: p.avatarIndex,
+          totalScore: p.totalScore,
+          rank: p.rank,
+          streak: p.streak,
+          answers: p.answers || [],
+        })),
+        startedAt: session.startedAt,
+        endedAt: session.endedAt,
+        createdAt: session.createdAt,
+        currentQuestionIndex: session.currentQuestionIndex,
+      },
+    };
+  }
+
+  /* ── Mutations used by socket layer ────────────────────────────────── */
+  async markPlayerConnected(
+    sessionId: string,
+    playerId: string,
+    socketId: string | null,
+    connected: boolean,
+  ) {
+    return this.sessionModel.updateOne(
+      { _id: sessionId, 'players.playerId': playerId },
+      {
+        $set: {
+          'players.$.socketId': socketId,
+          'players.$.connected': connected,
+        },
+      },
+    );
+  }
+
+  async saveSessionSnapshot(sessionId: string, data: any) {
+    return this.sessionModel.updateOne({ _id: sessionId }, { $set: data });
   }
 }
