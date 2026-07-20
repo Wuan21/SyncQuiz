@@ -103,7 +103,8 @@ export default function HostGamePage() {
     return () => clearInterval(t)
   }, [phase, timeLeft])
 
-  const next = () => socket.emit('host:next')
+  const skipTime = () => socket.emit('host:skip_time')
+  const nextQuestion = () => socket.emit('host:next_question')
 
   const endGame = () => {
     socket.emit('host:end_game')
@@ -194,7 +195,7 @@ export default function HostGamePage() {
                 </div>
               ))}
             </div>
-            <button onClick={next} className="btn-primary w-full flex items-center justify-center gap-2">
+            <button onClick={nextQuestion} className="btn-primary w-full flex items-center justify-center gap-2">
               Next Question <ChevronRight size={18} />
             </button>
           </div>
@@ -239,7 +240,7 @@ export default function HostGamePage() {
             </div>
           </div>
 
-          <button onClick={next} className="mt-8 mb-4 mx-auto flex items-center justify-center gap-2 text-sm text-white/40 hover:text-white/70 transition-colors">
+          <button onClick={skipTime} className="mt-8 mb-4 mx-auto flex items-center justify-center gap-2 text-sm text-white/40 hover:text-white/70 transition-colors">
             Bỏ qua thời gian <ChevronRight size={16} />
           </button>
         </>

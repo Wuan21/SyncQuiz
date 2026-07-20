@@ -403,12 +403,19 @@ export const initSocket = (server: any) => {
     });
 
     /* ── HOST: next question manually ──────────────────────────────────── */
-    socket.on('host:next', () => {
+    socket.on('host:skip_time', () => {
       const gameId = socket.data.gameId;
       const game = activeGames.get(gameId);
       if (!game || game.hostSocketId !== socket.id) return;
       clearTimeout(game.questionTimer);
       endQuestion(gameId);
+    });
+
+    socket.on('host:next_question', () => {
+      const gameId = socket.data.gameId;
+      const game = activeGames.get(gameId);
+      if (!game || game.hostSocketId !== socket.id) return;
+      sendNextQuestion(gameId);
     });
 
     /* ── HOST: end game early ──────────────────────────────────────────── */
@@ -703,9 +710,6 @@ function endQuestion(gameId: string) {
     leaderboard,
     answerCount: Object.keys(game.answers[idx] || {}).length,
   });
-
-  // Next question after 5s
-  setTimeout(() => sendNextQuestion(gameId), 5000);
 }
 
 async function endGame(gameId: string) {

@@ -3,7 +3,13 @@ import api from './axios'
 export const getQuizzes = (params) => api.get('/quizzes', { params }).then((r) => r.data)
 export const getMyQuizzes = (params) => api.get('/quizzes/my', { params }).then((r) => r.data)
 export const getQuiz = (id) => api.get(`/quizzes/${id}`).then((r) => r.data)
-export const getQuizFull = (id) => api.get(`/quizzes/${id}/full`).then((r) => r.data)
+export const getQuizFull = async (id) => {
+  const [quiz, questions] = await Promise.all([
+    getQuiz(id),
+    getQuestions(id).catch(() => []),
+  ])
+  return { ...quiz, questions }
+}
 export const createQuiz = (data) => api.post('/quizzes', data).then((r) => r.data)
 export const updateQuiz = (id, data) => api.patch(`/quizzes/${id}`, data).then((r) => r.data)
 export const deleteQuiz = (id) => api.delete(`/quizzes/${id}`)
