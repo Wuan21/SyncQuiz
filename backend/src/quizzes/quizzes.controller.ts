@@ -17,10 +17,15 @@ import { QuizzesService } from './quizzes.service';
 import { CreateQuizDto, UpdateQuizDto, SearchQuizDto } from './dto/quiz.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+import { AiService } from '../ai/ai.service';
+
 @ApiTags('Quizzes')
 @Controller('quizzes')
 export class QuizzesController {
-  constructor(private readonly quizzesService: QuizzesService) {}
+  constructor(
+    private readonly quizzesService: QuizzesService,
+    private readonly aiService: AiService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Search public quizzes' })
@@ -73,5 +78,14 @@ export class QuizzesController {
   @ApiOperation({ summary: 'Clone quiz' })
   clone(@Param('id') id: string, @Req() req: any) {
     return this.quizzesService.clone(id, req.user.id);
+  }
+
+  @Post('ai-generate')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Generate quiz questions with AI' })
+  aiGenerate(@Body() dto: any) {
+    return this.aiService.generateQuiz(dto);
   }
 }

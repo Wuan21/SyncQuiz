@@ -5,9 +5,12 @@ import { QuizzesService } from './quizzes.service';
 import { QuizzesRepository } from './quizzes.repository';
 import { Quiz, QuizSchema } from './schemas/quiz.schema';
 
+import { AiModule } from '../ai/ai.module';
+
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Quiz.name, schema: QuizSchema }]),
+    AiModule,
   ],
   controllers: [QuizzesController],
   providers: [QuizzesService, QuizzesRepository],

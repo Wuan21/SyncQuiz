@@ -14,6 +14,8 @@ import { UploadModule } from './upload/upload.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthModule } from './health/health.module';
 
+import { AiModule } from './ai/ai.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -41,6 +43,7 @@ import { HealthModule } from './health/health.module';
     UploadModule,
     AnalyticsModule,
     HealthModule,
+    AiModule,
   ],
 })
 export class AppModule {}
