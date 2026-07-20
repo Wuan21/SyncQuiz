@@ -15,17 +15,6 @@ import {
   SEED_CATEGORIES,
 } from './schemas/category.schema';
 
-@ApiTags('Categories')
-@Controller('categories')
-class CategoriesController {
-  constructor(private readonly svc: CategoriesService) {}
-
-  @Get()
-  findAll() {
-    return this.svc.findAll();
-  }
-}
-
 @Injectable()
 class CategoriesService implements OnModuleInit {
   private readonly logger = new Logger(CategoriesService.name);
@@ -49,6 +38,17 @@ class CategoriesService implements OnModuleInit {
 
   findAll() {
     return this.model.find().sort({ name: 1 }).lean();
+  }
+}
+
+@ApiTags('Categories')
+@Controller('categories')
+class CategoriesController {
+  constructor(private readonly svc: CategoriesService) {}
+
+  @Get()
+  findAll() {
+    return this.svc.findAll();
   }
 }
 
