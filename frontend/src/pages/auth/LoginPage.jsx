@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
 import { login, syncUser } from '../../api/auth.api'
 import useAuthStore from '../../store/useAuthStore'
-import { signIn, fetchAuthSession } from 'aws-amplify/auth'
+import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth'
 
 const isCognitoEnabled = !!(import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID && import.meta.env.VITE_AWS_COGNITO_CLIENT_ID)
 
@@ -18,6 +18,8 @@ export default function LoginPage() {
   const onSubmit = async (data) => {
     try {
       if (isCognitoEnabled) {
+        // Clear any stale session before signing in
+        try { await signOut() } catch (_) {}
         await signIn({ username: data.email, password: data.password })
         const session = await fetchAuthSession()
         const token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
