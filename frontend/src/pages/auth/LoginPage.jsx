@@ -18,9 +18,28 @@ export default function LoginPage() {
   const onSubmit = async (data) => {
     try {
       if (isCognitoEnabled) {
-        // Clear any stale session before signing in
-        try { await signOut() } catch (_) {}
-        await signIn({ username: data.email, password: data.password })
+        try {
+          await signOut()
+        } catch (_) {}
+
+        try {
+          await signIn({ username: data.email, password: data.password })
+        } catch (authErr) {
+          if (authErr?.message?.includes('already a signed in user')) {
+            await signOut()
+            // Clear any lingering cognito keys in localStorage
+            Object.keys(localStorage).forEach((key) => {
+              if (key.startsWith('CognitoIdentityServiceProvider')) {
+                localStorage.removeItem(key)
+              }
+            })
+            // Retry sign in once
+            await signIn({ username: data.email, password: data.password })
+          } else {
+            throw authErr
+          }
+        }
+
         const session = await fetchAuthSession()
         const token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
         if (token) {
