@@ -203,7 +203,32 @@ export const initSocket = (server: any) => {
           }));
 
           console.log('[SOCKET] Host attached to game:', gameId, 'room:', room);
-          cb({ success: true, gameId, players });
+          
+          const activeGame = activeGames.get(gameId);
+          if (activeGame) {
+            activeGame.hostSocketId = socket.id;
+            let timeLeft = 0;
+            if (activeGame.questionStartTs && activeGame.questionDurationMs) {
+              timeLeft = Math.max(0, Math.floor((activeGame.questionDurationMs - (Date.now() - activeGame.questionStartTs)) / 1000));
+            }
+            cb({ 
+              success: true, 
+              gameId, 
+              players,
+              gameState: 'running',
+              currentIdx: activeGame.currentIdx,
+              totalQuestions: activeGame.questions.length,
+              question: activeGame.questions[activeGame.currentIdx],
+              timeLimit: activeGame.questions[activeGame.currentIdx]?.timeLimit || 0,
+              timeLeft,
+              answerCount: {
+                answered: Object.keys(activeGame.answers[activeGame.currentIdx] || {}).length,
+                total: Object.keys(activeGame.players).length,
+              }
+            });
+          } else {
+            cb({ success: true, gameId, players });
+          }
         } catch (error: any) {
           console.error('[HOST ATTACH ERROR]', error.message);
           cb({
@@ -386,6 +411,15 @@ export const initSocket = (server: any) => {
       endQuestion(gameId);
     });
 
+    /* ── HOST: end game early ──────────────────────────────────────────── */
+    socket.on('host:end_game', () => {
+      const gameId = socket.data.gameId;
+      const game = activeGames.get(gameId);
+      if (!game || game.hostSocketId !== socket.id) return;
+      clearTimeout(game.questionTimer);
+      endGame(gameId);
+    });
+
     /* ── PLAYER: submit answer ─────────────────────────────────────────── */
     socket.on(
       'player:answer',
@@ -565,10 +599,8 @@ export const initSocket = (server: any) => {
       if (role === 'host') {
         const game = activeGames.get(gameId);
         if (game) {
-          const room = getGameRoom(gameId);
-          io.to(room).emit('game:host_left');
-          clearTimeout(game.questionTimer);
-          activeGames.delete(gameId);
+          game.hostSocketId = ''; // Mark host as disconnected but keep game alive
+          console.log('[SOCKET] Host disconnected but game is kept alive:', gameId);
         }
       }
     });
