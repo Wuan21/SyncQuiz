@@ -39,9 +39,16 @@ export class LiveService {
     }
 
     const quiz: any = await this.quizModel.findById(dto.quizId).lean();
-    if (!quiz || quiz.isDeleted) throw new NotFoundException('Quiz not found');
-    if (quiz.ownerId?.toString() !== hostId) {
-      throw new ForbiddenException('Only the quiz owner can start a game');
+    if (!quiz || quiz.isDeleted) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    // Allow hosting if quiz is public OR host is the owner
+    const isOwner = quiz.ownerId?.toString() === hostId.toString();
+    if (quiz.isPublic === false && !isOwner) {
+      throw new ForbiddenException(
+        'Bạn chỉ có thể host bộ câu hỏi của chính mình hoặc bộ câu hỏi công khai',
+      );
     }
 
     let pin: string;
@@ -50,7 +57,10 @@ export class LiveService {
       pin = generatePin();
       attempts++;
     } while (
-      (await this.sessionModel.exists({ pin, status: { $ne: 'finished' } })) &&
+      (await this.sessionModel.exists({
+        $or: [{ pin }, { pin: Number(pin) || -1 }],
+        status: { $ne: 'finished' },
+      })) &&
       attempts < 10
     );
 
@@ -89,8 +99,13 @@ export class LiveService {
       });
     }
 
+    const numericPin = Number(normalizedPin);
+    const pinFilter = !isNaN(numericPin)
+      ? { $or: [{ pin: normalizedPin }, { pin: numericPin }] }
+      : { pin: normalizedPin };
+
     const session: any = await this.sessionModel
-      .findOne({ pin: normalizedPin })
+      .findOne(pinFilter)
       .populate('quizId', 'title coverImageUrl')
       .lean();
 
@@ -106,7 +121,7 @@ export class LiveService {
       });
     }
 
-    if (session.status === 'finished') {
+    if (session.status === 'finished' || session.status === 'ended') {
       throw new HttpException(
         {
           success: false,
