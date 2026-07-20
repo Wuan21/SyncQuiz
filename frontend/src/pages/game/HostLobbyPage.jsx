@@ -26,16 +26,27 @@ export default function HostLobbyPage() {
   useEffect(() => { createMut.mutate() }, []) // eslint-disable-line
 
   useEffect(() => {
-    if (!session || !socket) return
-    socket.emit('host:join', { sessionId: session.id })
+    if (!session) return
+    const sock = connect() || socket
+    if (!sock) return
 
-    socket.on('host:lobby_update', ({ players: ps }) => setPlayers(ps))
-    socket.on('host:player_joined', ({ playerCount }) => {
-      toast.success(`${playerCount} player(s) waiting`)
+    sock.emit('host:join', { sessionId: session.id, pin: session.pin })
+
+    sock.on('host:joined', (data) => {
+      if (data.players) setPlayers(data.players)
     })
-    socket.on('game:started', () => navigate(`/host/game/${session.pin}`))
+    sock.on('host:lobby_update', ({ players: ps }) => setPlayers(ps))
+    sock.on('host:player_joined', ({ playerCount }) => {
+      toast.success(`Có người chơi mới tham gia (${playerCount} người)`)
+    })
+    sock.on('game:started', () => navigate(`/host/game/${session.pin}`))
 
-    return () => { socket.off('host:lobby_update'); socket.off('host:player_joined'); socket.off('game:started') }
+    return () => {
+      sock.off('host:joined')
+      sock.off('host:lobby_update')
+      sock.off('host:player_joined')
+      sock.off('game:started')
+    }
   }, [session, socket]) // eslint-disable-line
 
   useEffect(() => { connect() }, []) // eslint-disable-line

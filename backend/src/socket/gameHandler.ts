@@ -31,10 +31,15 @@ function calculateScore(
 let io: Server;
 
 export const initSocket = (server: any) => {
+  const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
+    .split(',')
+    .map((s) => s.trim());
+
   io = new Server(server, {
     cors: {
-      origin: (process.env.CORS_ORIGINS || 'http://localhost:5173').split(','),
+      origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
       credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization'],
     },
   });
 
@@ -54,7 +59,7 @@ export const initSocket = (server: any) => {
     }
   }
 
-  // ── Auth middleware (hosts must be authenticated) ──────────────────────────
+  // ── Auth middleware ────────────────────────────────────────────────────────
   io.use(async (socket: any, next) => {
     const token = socket.handshake.auth?.token;
     if (token) {
@@ -68,6 +73,7 @@ export const initSocket = (server: any) => {
           });
           if (user) {
             socket.user = {
+              id: user._id.toString(),
               sub: user._id.toString(),
               email: user.email,
               role: user.role,
@@ -78,135 +84,282 @@ export const initSocket = (server: any) => {
       }
 
       try {
-        socket.user = jwt.verify(
+        const decoded: any = jwt.verify(
           token,
           process.env.JWT_ACCESS_SECRET || 'secret',
         );
+        socket.user = {
+          id: decoded.id || decoded.sub,
+          sub: decoded.sub || decoded.id,
+          email: decoded.email,
+          role: decoded.role,
+        };
       } catch (_) {}
     }
     next();
   });
 
+  // Helper to ensure game exists in RAM or restore from MongoDB
+  async function ensureGameLoaded(pin: string) {
+    const normalizedPin = String(pin || '').trim();
+    if (!normalizedPin) return null;
+
+    let game = activeGames.get(normalizedPin);
+    if (game) return game;
+
+    try {
+      const SessionModel =
+        mongoose.models.GameSession || mongoose.model('GameSession');
+      const QuestionModel =
+        mongoose.models.Question || mongoose.model('Question');
+
+      const session: any = await SessionModel.findOne({
+        pin: normalizedPin,
+        status: { $ne: 'finished' },
+      }).lean();
+
+      if (!session) {
+        console.log('[SOCKET] Session not found in DB for PIN:', normalizedPin);
+        return null;
+      }
+
+      const questions = await QuestionModel.find({ quizId: session.quizId })
+        .sort({ order: 1 })
+        .lean();
+
+      game = {
+        sessionId: session._id.toString(),
+        pin: normalizedPin,
+        hostId: session.hostId?.toString(),
+        hostSocketId: null,
+        questions,
+        currentIdx: session.currentQuestionIndex ?? -1,
+        players: {}, // socketId → player
+        answers: {}, // questionIdx → { socketId: answer }
+        status: session.status === 'active' ? 'active' : 'lobby',
+        questionTimer: null,
+      };
+
+      activeGames.set(normalizedPin, game);
+      console.log(
+        '[SOCKET] Restored active game from DB for PIN:',
+        normalizedPin,
+      );
+      return game;
+    } catch (err: any) {
+      console.error('[SOCKET] Error restoring game:', err.message);
+      return null;
+    }
+  }
+
   io.on('connection', (socket: any) => {
     // ── HOST: create/start game ───────────────────────────────────────────────
-    socket.on('host:join', async ({ sessionId }: { sessionId: string }) => {
-      try {
-        if (!socket.user)
-          return socket.emit('error', { message: 'Unauthenticated' });
-        const SessionModel =
-          mongoose.models.GameSession || mongoose.model('GameSession');
-        const QuestionModel =
-          mongoose.models.Question || mongoose.model('Question');
+    socket.on(
+      'host:join',
+      async ({ sessionId, pin }: { sessionId?: string; pin?: string }) => {
+        try {
+          const userId =
+            socket.user?.id || socket.user?.sub || socket.user?._id;
+          if (!userId)
+            return socket.emit('error', {
+              code: 'UNAUTHENTICATED',
+              message: 'Unauthenticated',
+            });
 
-        const session: any = await SessionModel.findById(sessionId).lean();
-        if (!session)
-          return socket.emit('error', { message: 'Session not found' });
-        if (session.hostId.toString() !== socket.user.sub)
-          return socket.emit('error', { message: 'Forbidden' });
+          const SessionModel =
+            mongoose.models.GameSession || mongoose.model('GameSession');
 
-        socket.join(session.pin);
-        socket.pin = session.pin;
-        socket.role = 'host';
+          let session: any = null;
+          if (sessionId) {
+            session = await SessionModel.findById(sessionId).lean();
+          } else if (pin) {
+            session = await SessionModel.findOne({
+              pin: String(pin).trim(),
+            }).lean();
+          }
 
-        if (!activeGames.has(session.pin)) {
-          const questions = await QuestionModel.find({ quizId: session.quizId })
-            .sort({ order: 1 })
-            .lean();
-          activeGames.set(session.pin, {
-            sessionId: session._id.toString(),
-            pin: session.pin,
-            hostSocketId: socket.id,
-            questions,
-            currentIdx: -1,
-            players: {}, // socketId → player
-            answers: {}, // questionIdx → { socketId: answer }
-            status: 'lobby',
-            questionTimer: null,
+          if (!session)
+            return socket.emit('error', {
+              code: 'GAME_NOT_FOUND',
+              message: 'Session not found',
+            });
+
+          if (session.hostId?.toString() !== userId.toString()) {
+            return socket.emit('error', {
+              code: 'FORBIDDEN',
+              message: 'Forbidden',
+            });
+          }
+
+          const normalizedPin = String(session.pin).trim();
+          socket.join(normalizedPin);
+          socket.join(`game:${normalizedPin}`);
+          socket.pin = normalizedPin;
+          socket.role = 'host';
+
+          let game = activeGames.get(normalizedPin);
+          if (!game) {
+            game = await ensureGameLoaded(normalizedPin);
+          }
+
+          if (game) {
+            game.hostSocketId = socket.id;
+          }
+
+          socket.emit('host:joined', {
+            pin: normalizedPin,
+            playerCount: game ? Object.keys(game.players).length : 0,
+            players: game
+              ? Object.values(game.players).map((p: any) => ({
+                  nickname: p.nickname,
+                  avatarIndex: p.avatarIndex,
+                }))
+              : [],
+          });
+        } catch (err: any) {
+          socket.emit('error', {
+            code: 'INTERNAL_ERROR',
+            message: err.message,
           });
         }
-
-        const game = activeGames.get(session.pin);
-        socket.emit('host:joined', {
-          pin: session.pin,
-          playerCount: Object.keys(game.players).length,
-        });
-      } catch (err: any) {
-        socket.emit('error', { message: err.message });
-      }
-    });
+      },
+    );
 
     // ── PLAYER: join lobby ────────────────────────────────────────────────────
     socket.on(
       'player:join',
-      async ({
-        pin,
-        nickname,
-        avatarIndex = 0,
-        teamName = null,
-      }: {
-        pin: string;
-        nickname: string;
-        avatarIndex?: number;
-        teamName?: string;
-      }) => {
-        const game = activeGames.get(pin);
-        if (!game) return socket.emit('error', { message: 'Game not found' });
-        if (game.status !== 'lobby')
-          return socket.emit('error', { message: 'Game already started' });
+      async (
+        {
+          pin,
+          nickname,
+          avatarIndex = 0,
+          teamName = null,
+        }: {
+          pin: string;
+          nickname: string;
+          avatarIndex?: number;
+          teamName?: string;
+        },
+        callback?: (res: any) => void,
+      ) => {
+        const normalizedPin = String(pin || '').trim();
+        const nickClean = String(nickname || '').trim();
+
+        if (!normalizedPin || !nickClean) {
+          const errRes = {
+            success: false,
+            code: 'INVALID_INPUT',
+            message: 'Mã PIN và Nickname không được để trống',
+          };
+          if (callback) callback(errRes);
+          return socket.emit('error', errRes);
+        }
+
+        const game = await ensureGameLoaded(normalizedPin);
+
+        if (!game) {
+          console.log('[JOIN GAME] Not found', {
+            pin: normalizedPin,
+            collection: 'GameSession',
+          });
+          const errRes = {
+            success: false,
+            code: 'GAME_NOT_FOUND',
+            message: 'Không tìm thấy phòng chơi với mã PIN này',
+          };
+          if (callback) callback(errRes);
+          return socket.emit('error', errRes);
+        }
+
+        if (game.status === 'finished') {
+          const errRes = {
+            success: false,
+            code: 'GAME_ENDED',
+            message: 'Phòng chơi đã kết thúc',
+          };
+          if (callback) callback(errRes);
+          return socket.emit('error', errRes);
+        }
 
         const nickTaken = Object.values(game.players).some(
-          (p: any) => p.nickname.toLowerCase() === nickname.toLowerCase(),
+          (p: any) => p.nickname.toLowerCase() === nickClean.toLowerCase(),
         );
-        if (nickTaken)
-          return socket.emit('error', { message: 'Nickname already taken' });
+        if (nickTaken) {
+          const errRes = {
+            success: false,
+            code: 'NICKNAME_TAKEN',
+            message: 'Nickname này đã có người sử dụng',
+          };
+          if (callback) callback(errRes);
+          return socket.emit('error', errRes);
+        }
 
         game.players[socket.id] = {
           socketId: socket.id,
-          userId: socket.user?.sub || null,
-          nickname,
+          userId: socket.user?.id || socket.user?.sub || null,
+          nickname: nickClean,
           avatarIndex,
           totalScore: 0,
           streak: 0,
           answers: [],
           powerUps: { ...DEFAULT_POWERUPS },
           activePowerUp: null,
-          teamName: teamName || null,
+          teamName: teamName?.trim() || null,
         };
 
-        socket.join(pin);
-        socket.pin = pin;
+        socket.join(normalizedPin);
+        socket.join(`game:${normalizedPin}`);
+        socket.pin = normalizedPin;
         socket.role = 'player';
 
-        socket.emit('player:joined', { nickname, pin });
-        io.to(game.hostSocketId).emit('host:player_joined', {
-          nickname,
-          playerCount: Object.keys(game.players).length,
-        });
-        // Broadcast updated player list to host
-        io.to(game.hostSocketId).emit('host:lobby_update', {
-          players: Object.values(game.players).map((p: any) => ({
-            nickname: p.nickname,
-            avatarIndex: p.avatarIndex,
-          })),
-        });
+        const successRes = {
+          success: true,
+          nickname: nickClean,
+          pin: normalizedPin,
+        };
+        if (callback) callback(successRes);
+        socket.emit('player:joined', successRes);
+
+        if (game.hostSocketId) {
+          io.to(game.hostSocketId).emit('host:player_joined', {
+            nickname: nickClean,
+            playerCount: Object.keys(game.players).length,
+          });
+          io.to(game.hostSocketId).emit('host:lobby_update', {
+            players: Object.values(game.players).map((p: any) => ({
+              nickname: p.nickname,
+              avatarIndex: p.avatarIndex,
+            })),
+          });
+        }
       },
     );
 
     // ── HOST: start game ──────────────────────────────────────────────────────
-    socket.on('host:start', () => {
-      const game = activeGames.get(socket.pin);
+    socket.on('host:start', async () => {
+      const pin = socket.pin;
+      const game = activeGames.get(pin);
       if (!game || game.hostSocketId !== socket.id) return;
+
       game.status = 'active';
-      io.to(socket.pin).emit('game:started');
-      sendNextQuestion(socket.pin);
+      const SessionModel =
+        mongoose.models.GameSession || mongoose.model('GameSession');
+      await SessionModel.findOneAndUpdate(
+        { pin },
+        { status: 'active', startedAt: new Date() },
+      );
+
+      io.to(pin).to(`game:${pin}`).emit('game:started');
+      sendNextQuestion(pin);
     });
 
-    // ── HOST: next question manually (optional) ───────────────────────────────
+    // ── HOST: next question manually ──────────────────────────────────────────
     socket.on('host:next', () => {
-      const game = activeGames.get(socket.pin);
+      const pin = socket.pin;
+      const game = activeGames.get(pin);
       if (!game || game.hostSocketId !== socket.id) return;
       clearTimeout(game.questionTimer);
-      endQuestion(socket.pin);
+      endQuestion(pin);
     });
 
     // ── PLAYER: submit answer ─────────────────────────────────────────────────
@@ -219,7 +372,8 @@ export const initSocket = (server: any) => {
         optionIndex: number;
         timeSpent: number;
       }) => {
-        const game = activeGames.get(socket.pin);
+        const pin = socket.pin;
+        const game = activeGames.get(pin);
         if (!game || game.status !== 'active') return;
 
         const player = game.players[socket.id];
@@ -267,19 +421,25 @@ export const initSocket = (server: any) => {
         // Notify host of answer count
         const answered = Object.keys(game.answers[idx]).length;
         const total = Object.keys(game.players).length;
-        io.to(game.hostSocketId).emit('host:answer_count', { answered, total });
+        if (game.hostSocketId) {
+          io.to(game.hostSocketId).emit('host:answer_count', {
+            answered,
+            total,
+          });
+        }
 
         // Auto-advance if everyone answered
         if (answered >= total) {
           clearTimeout(game.questionTimer);
-          endQuestion(socket.pin);
+          endQuestion(pin);
         }
       },
     );
 
     // ── PLAYER: use power-up ──────────────────────────────────────────────────
     socket.on('player:powerup', ({ type }: { type: string }) => {
-      const game = activeGames.get(socket.pin);
+      const pin = socket.pin;
+      const game = activeGames.get(pin);
       if (!game || game.status !== 'active') return;
       const player = game.players[socket.id];
       if (!player || !player.powerUps[type] || player.powerUps[type] <= 0)
@@ -315,10 +475,10 @@ export const initSocket = (server: any) => {
 
         clearTimeout(game.questionTimer);
         game.questionTimer = setTimeout(() => {
-          endQuestion(socket.pin);
+          endQuestion(pin);
         }, newRemainingMs + 2000);
 
-        io.to(socket.pin).emit('game:extra_time', {
+        io.to(pin).to(`game:${pin}`).emit('game:extra_time', {
           nickname: player.nickname,
           seconds: 15,
         });
@@ -331,24 +491,27 @@ export const initSocket = (server: any) => {
 
     // ── Disconnect ────────────────────────────────────────────────────────────
     socket.on('disconnect', () => {
-      const game = activeGames.get(socket.pin);
+      const pin = socket.pin;
+      const game = activeGames.get(pin);
       if (!game) return;
 
       if (socket.role === 'player') {
         const player = game.players[socket.id];
         if (player) {
           delete game.players[socket.id];
-          io.to(game.hostSocketId).emit('host:player_left', {
-            nickname: player.nickname,
-            playerCount: Object.keys(game.players).length,
-          });
+          if (game.hostSocketId) {
+            io.to(game.hostSocketId).emit('host:player_left', {
+              nickname: player.nickname,
+              playerCount: Object.keys(game.players).length,
+            });
+          }
         }
       }
 
       if (socket.role === 'host') {
-        io.to(socket.pin).emit('game:host_left');
+        io.to(pin).to(`game:${pin}`).emit('game:host_left');
         clearTimeout(game.questionTimer);
-        activeGames.delete(socket.pin);
+        activeGames.delete(pin);
       }
     });
   });
@@ -370,12 +533,14 @@ function sendNextQuestion(pin: string) {
   const total = game.questions.length;
 
   // Send to host (includes correct answers)
-  io.to(game.hostSocketId).emit('host:question', {
-    index: game.currentIdx,
-    total,
-    question: q,
-    timeLimit: q.timeLimit,
-  });
+  if (game.hostSocketId) {
+    io.to(game.hostSocketId).emit('host:question', {
+      index: game.currentIdx,
+      total,
+      question: q,
+      timeLimit: q.timeLimit,
+    });
+  }
 
   // Send to players (NO isCorrect field)
   const playerQuestion = {
@@ -394,7 +559,7 @@ function sendNextQuestion(pin: string) {
     })),
   };
 
-  io.to(pin).emit('game:question', playerQuestion);
+  io.to(pin).to(`game:${pin}`).emit('game:question', playerQuestion);
 
   game.questionStartTs = Date.now();
   game.questionDurationMs = q.timeLimit * 1000;
@@ -427,12 +592,14 @@ function endQuestion(pin: string) {
     .map((o: any, i: number) => (o.isCorrect ? i : null))
     .filter((i: any) => i !== null);
 
-  io.to(pin).emit('game:question_end', {
-    correctOptions,
-    explanation: q.explanation,
-    leaderboard,
-    answerCount: Object.keys(game.answers[idx] || {}).length,
-  });
+  io.to(pin)
+    .to(`game:${pin}`)
+    .emit('game:question_end', {
+      correctOptions,
+      explanation: q.explanation,
+      leaderboard,
+      answerCount: Object.keys(game.answers[idx] || {}).length,
+    });
 
   // Next question after 5s
   setTimeout(() => sendNextQuestion(pin), 5000);
@@ -463,7 +630,7 @@ async function endGame(pin: string) {
     .sort((a: any, b: any) => b.totalScore - a.totalScore)
     .map((t: any, i: number) => ({ ...t, rank: i + 1 }));
 
-  io.to(pin).emit('game:ended', {
+  io.to(pin).to(`game:${pin}`).emit('game:ended', {
     leaderboard: finalLeaderboard,
     teamLeaderboard,
   });

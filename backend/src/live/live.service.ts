@@ -2,6 +2,9 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -31,10 +34,15 @@ export class LiveService {
       shuffleAnswers?: boolean;
     },
   ) {
+    if (!hostId) {
+      throw new ForbiddenException('User unauthenticated');
+    }
+
     const quiz: any = await this.quizModel.findById(dto.quizId).lean();
     if (!quiz || quiz.isDeleted) throw new NotFoundException('Quiz not found');
-    if (quiz.ownerId?.toString() !== hostId)
+    if (quiz.ownerId?.toString() !== hostId) {
       throw new ForbiddenException('Only the quiz owner can start a game');
+    }
 
     let pin: string;
     let attempts = 0;
@@ -48,9 +56,12 @@ export class LiveService {
 
     const session = await this.sessionModel.create({
       quizId: quiz._id,
-      hostId: new Types.ObjectId(hostId),
-      pin,
+      hostId: Types.ObjectId.isValid(hostId)
+        ? new Types.ObjectId(hostId)
+        : hostId,
+      pin: pin.toString().trim(),
       totalQuestions: quiz.questionCount || 0,
+      status: 'waiting',
       settings: {
         shuffleQuestions:
           dto.shuffleQuestions ?? quiz.shuffleQuestions ?? false,
@@ -58,21 +69,64 @@ export class LiveService {
       },
     });
 
+    console.log('[LIVE SERVICE] Created game session:', {
+      id: session._id.toString(),
+      pin: session.pin,
+      status: session.status,
+      hostId,
+    });
+
     return session;
   }
 
   async getByPin(pin: string) {
-    const session = await this.sessionModel
-      .findOne({ pin })
+    const normalizedPin = String(pin || '').trim();
+    if (!normalizedPin) {
+      throw new BadRequestException({
+        success: false,
+        code: 'INVALID_PIN',
+        message: 'Mã PIN không hợp lệ',
+      });
+    }
+
+    const session: any = await this.sessionModel
+      .findOne({ pin: normalizedPin })
       .populate('quizId', 'title coverImageUrl')
       .lean();
-    if (!session) throw new NotFoundException('Game not found');
+
+    if (!session) {
+      console.log(
+        '[LIVE SERVICE] Game session not found for PIN:',
+        normalizedPin,
+      );
+      throw new NotFoundException({
+        success: false,
+        code: 'GAME_NOT_FOUND',
+        message: 'Không tìm thấy phòng chơi với mã PIN này',
+      });
+    }
+
+    if (session.status === 'finished') {
+      throw new HttpException(
+        {
+          success: false,
+          code: 'GAME_ENDED',
+          message: 'Phòng chơi đã kết thúc',
+        },
+        HttpStatus.GONE,
+      );
+    }
+
     return session;
   }
 
   async getMyHistory(hostId: string) {
+    const hostFilter = Types.ObjectId.isValid(hostId)
+      ? { hostId: new Types.ObjectId(hostId) }
+      : { hostId };
+
     return this.sessionModel
-      .find({ hostId: new Types.ObjectId(hostId) })
+      .find(hostFilter)
       .sort({ createdAt: -1 })
       .limit(20)
       .populate('quizId', 'title coverImageUrl')
@@ -84,6 +138,7 @@ export class LiveService {
       .findById(sessionId)
       .populate('quizId', 'title coverImageUrl')
       .lean();
+
     if (!session) throw new NotFoundException('Session not found');
     if (
       session.hostId?.toString() !== userId &&

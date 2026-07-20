@@ -18,18 +18,72 @@ export default function PlayerJoinPage() {
   const [avatarIdx, setAvatarIdx] = useState(0)
 
   const onSubmit = async ({ pin, nickname, teamName }) => {
-    try {
-      const session = await getSessionByPin(pin)
-      if (session.status !== 'waiting') return toast.error('Game already started or ended')
+    const cleanPin = String(pin || '').trim()
+    const cleanNick = String(nickname || '').trim()
+    if (!cleanPin || !cleanNick) return toast.error('Vui lòng nhập PIN và Nickname')
 
-      connect()
-      setTimeout(() => {
-        socket?.emit('player:join', { pin, nickname: nickname.trim(), avatarIndex: avatarIdx, teamName: teamName?.trim() || null })
-        socket?.once('player:joined', () => navigate(`/play/${pin}?nickname=${encodeURIComponent(nickname)}`))
-        socket?.once('error', ({ message }) => toast.error(message))
-      }, 300)
-    } catch {
-      toast.error('Game not found — check the PIN')
+    console.log('[JOIN GAME] Attempting join with PIN:', cleanPin, 'Nickname:', cleanNick)
+
+    try {
+      const session = await getSessionByPin(cleanPin)
+      if (session.status === 'finished') {
+        return toast.error('Phòng chơi đã kết thúc')
+      }
+
+      const sock = connect() || socket
+
+      if (!sock) {
+        return toast.error('Không thể kết nối đến máy chủ WebSocket')
+      }
+
+      const joinPayload = {
+        pin: cleanPin,
+        nickname: cleanNick,
+        avatarIndex: avatarIdx,
+        teamName: teamName?.trim() || null,
+      }
+
+      sock.emit('player:join', joinPayload, (response) => {
+        console.log('[JOIN GAME] Socket ACK callback response:', response)
+        if (response && !response.success) {
+          const code = response.code
+          if (code === 'GAME_NOT_FOUND') toast.error('Không tìm thấy phòng chơi với mã PIN này')
+          else if (code === 'GAME_ENDED') toast.error('Phòng chơi đã kết thúc')
+          else if (code === 'NICKNAME_TAKEN') toast.error('Nickname này đã có người sử dụng')
+          else toast.error(response.message || 'Không thể tham gia game')
+        }
+      })
+
+      const handleJoined = (res) => {
+        sock.off('error', handleError)
+        console.log('[JOIN GAME] Player joined successfully:', res)
+        navigate(`/play/${cleanPin}?nickname=${encodeURIComponent(cleanNick)}`)
+      }
+
+      const handleError = (err) => {
+        sock.off('player:joined', handleJoined)
+        console.error('[JOIN GAME ERROR]', err)
+        const code = err?.code
+        const msg = typeof err === 'string' ? err : err?.message
+        if (code === 'GAME_NOT_FOUND') toast.error('Không tìm thấy phòng chơi với mã PIN này')
+        else if (code === 'GAME_ENDED') toast.error('Phòng chơi đã kết thúc')
+        else if (code === 'NICKNAME_TAKEN') toast.error('Nickname này đã có người sử dụng')
+        else toast.error(msg || 'Không thể tham gia phòng chơi')
+      }
+
+      sock.once('player:joined', handleJoined)
+      sock.once('error', handleError)
+    } catch (err) {
+      console.error('[JOIN GAME API ERROR]', err)
+      const code = err.response?.data?.code
+      const msg = err.response?.data?.message || err.message
+      if (code === 'GAME_NOT_FOUND' || err.response?.status === 404) {
+        toast.error('Không tìm thấy phòng chơi với mã PIN này')
+      } else if (code === 'GAME_ENDED' || err.response?.status === 410) {
+        toast.error('Phòng chơi đã kết thúc')
+      } else {
+        toast.error(msg || 'Không thể kiểm tra mã PIN')
+      }
     }
   }
 
