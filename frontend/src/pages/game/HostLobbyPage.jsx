@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { Users, Play, Copy, QrCode, X } from 'lucide-react'
@@ -14,23 +14,33 @@ export default function HostLobbyPage() {
   const [session, setSession] = useState(null)
   const [players, setPlayers] = useState([])
   const [showQR, setShowQR] = useState(false)
+  const hasCreated = useRef(false)
 
   const joinUrl = session ? `${window.location.origin}/join/${session.pin}` : ''
 
   const createMut = useMutation({
     mutationFn: () => createSession({ quizId }),
-    onSuccess: (data) => setSession(data),
+    onSuccess: (data) => {
+      console.log('[HOST LOBBY] Session created successfully:', data)
+      setSession(data)
+    },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to create game'),
   })
 
-  useEffect(() => { createMut.mutate() }, []) // eslint-disable-line
+  useEffect(() => {
+    if (!hasCreated.current && quizId) {
+      hasCreated.current = true
+      createMut.mutate()
+    }
+  }, [quizId]) // eslint-disable-line
 
   useEffect(() => {
     if (!session) return
     const sock = connect() || socket
     if (!sock) return
 
-    sock.emit('host:join', { sessionId: session.id, pin: session.pin })
+    const sId = session.id || session._id
+    sock.emit('host:join', { sessionId: sId, pin: session.pin })
 
     sock.on('host:joined', (data) => {
       if (data.players) setPlayers(data.players)
@@ -52,9 +62,10 @@ export default function HostLobbyPage() {
   useEffect(() => { connect() }, []) // eslint-disable-line
 
   const startGame = () => {
-    if (!socket || !session) return
+    const sock = socket || connect()
+    if (!sock || !session) return
     if (players.length === 0) return toast.error('Wait for at least 1 player')
-    socket.emit('host:start')
+    sock.emit('host:start')
   }
 
   if (createMut.isPending) return <Centered>Creating game...</Centered>
@@ -81,7 +92,7 @@ export default function HostLobbyPage() {
             </button>
           </div>
           <p className="text-white/40 text-sm mt-3">
-            Players go to <span className="text-violet-400 font-semibold">syncquiz.app/join</span> and enter this PIN
+            Players go to <span className="text-violet-400 font-semibold">{window.location.host}/join</span> and enter this PIN
           </p>
         </div>
 

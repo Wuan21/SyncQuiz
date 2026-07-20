@@ -14,8 +14,19 @@ async function bootstrap() {
   const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
     .split(',')
     .map((s) => s.trim());
+
   app.enableCors({
-    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const cleanOrigin = origin.replace(/\/$/, '');
+      const isAllowed = corsOrigins.some(
+        (co) => co === '*' || co.replace(/\/$/, '') === cleanOrigin,
+      );
+      if (isAllowed || process.env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      }
+      return callback(null, true); // Allow CORS for all origins in live game
+    },
     credentials: true,
   });
 
@@ -42,13 +53,12 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
-
-  // Initialize Socket.IO real-time multiplayer server (Kahoot-style)
-
+  // Initialize Socket.IO BEFORE listening so upgrade listeners are bound
   const { initSocket } = require('./socket/gameHandler');
   initSocket(app.getHttpServer());
+
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
 
   console.log(`🚀 SyncQuiz API running on http://localhost:${port}/api`);
   console.log(`📖 Swagger docs at http://localhost:${port}/docs`);
