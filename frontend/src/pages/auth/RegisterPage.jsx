@@ -36,6 +36,7 @@ export default function RegisterPage() {
             userAttributes: {
               email: data.email,
               name: data.fullName,
+              phone_number: data.phone,
             }
           }
         })
@@ -108,6 +109,23 @@ export default function RegisterPage() {
                     className="input"
                   />
                   {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Số điện thoại</label>
+                  <input
+                    {...register('phone', {
+                      required: 'Vui lòng nhập số điện thoại',
+                      pattern: {
+                        value: /^\+[1-9]\d{7,14}$/,
+                        message: 'Định dạng quốc tế, ví dụ: +84912345678'
+                      }
+                    })}
+                    type="tel"
+                    placeholder="+84912345678"
+                    className="input"
+                  />
+                  {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone.message}</p>}
                 </div>
 
                 <div>
