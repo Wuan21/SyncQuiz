@@ -12,6 +12,7 @@ import { Model } from 'mongoose';
 import {
   Category,
   CategoryDocument,
+  CategorySchema,
   SEED_CATEGORIES,
 } from './schemas/category.schema';
 
@@ -54,7 +55,7 @@ class CategoriesController {
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Category.name, schema: Category }]),
+    MongooseModule.forFeature([{ name: Category.name, schema: CategorySchema }]),
   ],
   controllers: [CategoriesController],
   providers: [CategoriesService],
