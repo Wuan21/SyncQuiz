@@ -40,7 +40,7 @@ export default function PlayerJoinPage() {
       }
 
       // Step 2: Connect Socket.IO
-      const sock = connect() || socket
+      const sock = connect() || socket || useSocketStore.getState().socket
       if (!sock) {
         setJoining(false)
         return toast.error('Không thể kết nối đến máy chủ WebSocket')
