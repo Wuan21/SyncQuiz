@@ -18,6 +18,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthModule } from './health/health.module';
 import { AiModule } from './ai/ai.module';
 import { QuestionsModule } from './questions/questions.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { QuestionsModule } from './questions/questions.module';
     AnalyticsModule,
     HealthModule,
     AiModule,
+    AdminModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

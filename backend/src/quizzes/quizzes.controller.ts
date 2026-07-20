@@ -53,6 +53,25 @@ export class QuizzesController {
     return this.quizzesService.findMyQuizzes(userId, dto);
   }
 
+  @Get('favorites')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get favorite quizzes' })
+  findFavorites(@Req() req: any) {
+    const userId = this.getUserId(req);
+    return this.quizzesService.findFavorites(userId);
+  }
+
+  @Post(':id/favorite')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Toggle favorite on a quiz' })
+  toggleFavorite(@Req() req: any, @Param('id') id: string) {
+    const userId = this.getUserId(req);
+    return this.quizzesService.toggleFavorite(userId, id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get quiz by ID' })
   findOne(@Param('id') id: string, @Req() req: any) {

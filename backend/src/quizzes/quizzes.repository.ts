@@ -10,6 +10,10 @@ import { SearchQuizDto } from './dto/quiz.dto';
 export class QuizzesRepository {
   constructor(@InjectModel(Quiz.name) private quizModel: Model<QuizDocument>) {}
 
+  get model() {
+    return this.quizModel;
+  }
+
   async findById(id: string): Promise<QuizDocument | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     return this.quizModel.findById(id).where({ isDeleted: false }).exec();

@@ -87,13 +87,19 @@ export const createHomework = (data) =>
   api.post('/homework', data).then((r) => r.data)
 
 export const submitHomework = (id, data) =>
-  api.post(`/homework/${id}/submit`, data).then((r) => r.data)
+  api.post('/homework/' + id + '/submit', data).then((r) => r.data)
 
 export const getHomeworkResults = (id) =>
-  api.get(`/homework/${id}/results`).then((r) => r.data)
+  api.get('/homework/' + id + '/results').then((r) => r.data)
 
 export const getHomeworkDetails = (id) =>
-  api.get(`/homework/${id}`).then((r) => r.data)
+  api.get('/homework/' + id).then((r) => r.data)
+
+export const saveHomeworkProgress = (id, data) =>
+  api.patch('/homework/' + id + '/progress', data).then((r) => r.data)
+
+export const getHomeworkProgress = (id) =>
+  api.get('/homework/' + id + '/progress').then((r) => r.data)
 
 // ── CSV import (placeholder — kept for legacy callers) ─────────────────────
 export const downloadCSVTemplate = () =>
@@ -115,6 +121,6 @@ export const createClassroom = (data) =>
   api.post('/classrooms', data).then((r) => r.data)
 
 export const joinClassroom = (code) =>
-  api.post(`/classrooms/join/${code}`).then((r) => r.data)
+  api.post('/classrooms/join/' + code).then((r) => r.data)
 
-export const deleteClassroom = (id) => api.delete(`/classrooms/${id}`)
+export const deleteClassroom = (id) => api.delete('/classrooms/' + id)

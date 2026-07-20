@@ -73,6 +73,52 @@ export class GamePlayer {
 }
 export const GamePlayerSchema = SchemaFactory.createForClass(GamePlayer);
 
+@Schema({ _id: false })
+export class ActiveQuestion {
+  @Prop({ default: null })
+  questionId: string;
+
+  @Prop({ default: null })
+  questionIndex: number;
+
+  @Prop({ default: null })
+  startTime: number;
+
+  @Prop({ default: 30000 })
+  durationMs: number;
+
+  @Prop({ default: null })
+  removedOptions: number[];
+}
+export const ActiveQuestionSchema =
+  SchemaFactory.createForClass(ActiveQuestion);
+
+@Schema({ _id: false })
+export class PlayerActiveAnswer {
+  @Prop({ required: true })
+  playerId: string;
+
+  @Prop({ required: true })
+  socketId: string;
+
+  @Prop({ default: null })
+  selectedOption: number;
+
+  @Prop({ default: null })
+  answerText: string;
+
+  @Prop({ default: 0 })
+  timeSpent: number;
+
+  @Prop({ default: false })
+  isCorrect: boolean;
+
+  @Prop({ default: 0 })
+  pointsEarned: number;
+}
+export const PlayerActiveAnswerSchema =
+  SchemaFactory.createForClass(PlayerActiveAnswer);
+
 @Schema({ timestamps: true, collection: 'gamesessions' })
 export class GameSession {
   @Prop({
@@ -110,6 +156,12 @@ export class GameSession {
 
   @Prop({ default: -1 })
   currentQuestionIndex: number;
+
+  @Prop({ type: ActiveQuestionSchema, default: null })
+  activeQuestion: ActiveQuestion | null;
+
+  @Prop({ type: [PlayerActiveAnswerSchema], default: [] })
+  activeAnswers: PlayerActiveAnswer[];
 
   @Prop({ default: 0 })
   totalQuestions: number;

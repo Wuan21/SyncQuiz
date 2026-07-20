@@ -9,6 +9,11 @@ export enum HomeworkStatus {
   CLOSED = 'closed',
 }
 
+export enum SubmissionStatus {
+  IN_PROGRESS = 'in_progress',
+  SUBMITTED = 'submitted',
+}
+
 @Schema({ timestamps: true, collection: 'homeworks' })
 export class Homework {
   @Prop({ type: String, required: true, index: true })
@@ -90,3 +95,34 @@ export class HomeworkSubmission {
 export const HomeworkSubmissionSchema =
   SchemaFactory.createForClass(HomeworkSubmission);
 HomeworkSubmissionSchema.index({ homeworkId: 1, studentId: 1 });
+
+/* ── Homework Progress (saves answer on each question navigation) ── */
+@Schema({ timestamps: true, collection: 'homeworkprogress' })
+export class HomeworkProgress {
+  @Prop({ type: String, required: true, index: true })
+  homeworkId: string;
+
+  @Prop({ type: String, required: true, index: true })
+  studentId: string;
+
+  /** Map of questionId -> selectedOption index */
+  @Prop({ type: Map, of: Number, default: {} })
+  answers: Map<string, number>;
+
+  /** Last question index the student visited */
+  @Prop({ default: 0 })
+  lastVisitedIndex: number;
+
+  /** Whether the student has submitted (final submission) */
+  @Prop({ default: false })
+  isSubmitted: boolean;
+
+  /** Timestamp of last answer update */
+  @Prop({ default: Date.now })
+  updatedAt: Date;
+}
+export const HomeworkProgressSchema =
+  SchemaFactory.createForClass(HomeworkProgress);
+HomeworkProgressSchema.index({ homeworkId: 1, studentId: 1 }, { unique: true });
+
+export type HomeworkProgressDocument = HomeworkProgress & Document;

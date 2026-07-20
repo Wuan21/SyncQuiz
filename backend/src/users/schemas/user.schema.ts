@@ -34,6 +34,9 @@ export class User {
 
   @Prop({ default: null })
   deletedAt: Date;
+
+  @Prop({ type: [String], default: [] })
+  favoriteQuizIds: string[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

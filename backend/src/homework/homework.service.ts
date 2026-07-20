@@ -12,6 +12,8 @@ import {
   HomeworkStatus,
   HomeworkSubmission,
   HomeworkSubmissionDocument,
+  HomeworkProgress,
+  HomeworkProgressDocument,
 } from './schemas/homework.schema';
 import {
   Classroom,
@@ -36,6 +38,8 @@ export class HomeworkService {
     private readonly quizModel: Model<QuizDocument>,
     @InjectModel(Question.name)
     private readonly questionModel: Model<QuestionDocument>,
+    @InjectModel(HomeworkProgress.name)
+    private readonly progressModel: Model<HomeworkProgressDocument>,
   ) {}
 
   /* ── Teacher side ─────────────────────────────────────────────────── */
@@ -153,6 +157,78 @@ export class HomeworkService {
   }
 
   /* ── Student side ─────────────────────────────────────────────────── */
+
+  /* ── Progress tracking (auto-save answers) ─────────────────────────── */
+  async saveProgress(
+    homeworkId: string,
+    studentId: string,
+    data: { answers: Record<string, number>; lastVisitedIndex: number },
+  ) {
+    if (!Types.ObjectId.isValid(homeworkId)) {
+      throw new NotFoundException({
+        success: false,
+        code: 'HOMEWORK_NOT_FOUND',
+        message: 'Không tìm thấy bài tập',
+      });
+    }
+
+    const hw = await this.hwModel.findById(homeworkId).lean();
+    if (!hw) {
+      throw new NotFoundException({
+        success: false,
+        code: 'HOMEWORK_NOT_FOUND',
+        message: 'Không tìm thấy bài tập',
+      });
+    }
+
+    const classroom = await this.classroomModel.findById(hw.classroomId).lean();
+    if (!classroom) {
+      throw new ForbiddenException({
+        success: false,
+        code: 'CLASSROOM_NOT_FOUND',
+        message: 'Không tìm thấy lớp học',
+      });
+    }
+    if (!(classroom.studentIds || []).includes(studentId.toString())) {
+      throw new ForbiddenException({
+        success: false,
+        code: 'FORBIDDEN',
+        message: 'Bạn không phải học sinh của lớp này',
+      });
+    }
+
+    // Upsert progress
+    const answersMap: Record<string, number> = {};
+    for (const [k, v] of Object.entries(data.answers)) {
+      answersMap[k] = v;
+    }
+
+    await this.progressModel.findOneAndUpdate(
+      { homeworkId, studentId: studentId.toString() },
+      {
+        homeworkId,
+        studentId: studentId.toString(),
+        answers: answersMap,
+        lastVisitedIndex: data.lastVisitedIndex,
+        updatedAt: new Date(),
+      },
+      { upsert: true, new: true },
+    );
+
+    return { success: true };
+  }
+
+  async getProgress(homeworkId: string, studentId: string) {
+    const progress = await this.progressModel
+      .findOne({ homeworkId, studentId: studentId.toString() })
+      .lean();
+    return {
+      answers: progress?.answers || {},
+      lastVisitedIndex: progress?.lastVisitedIndex || 0,
+      isSubmitted: progress?.isSubmitted || false,
+      updatedAt: progress?.updatedAt || null,
+    };
+  }
 
   async listForStudent(studentId: string) {
     // Find classrooms where student is a member
@@ -419,6 +495,12 @@ export class HomeworkService {
       correct: correctCount,
       total,
     });
+
+    // Mark progress as submitted
+    await this.progressModel.findOneAndUpdate(
+      { homeworkId, studentId: studentId.toString() },
+      { isSubmitted: true, updatedAt: new Date() },
+    );
 
     return {
       success: true,

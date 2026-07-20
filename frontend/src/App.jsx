@@ -8,6 +8,7 @@ const isCognitoEnabled = !!(import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID && imp
 
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/layout/ProtectedRoute'
+import AdminRoute from './components/layout/AdminRoute'
 
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
@@ -25,6 +26,8 @@ import ProfilePage from './pages/auth/ProfilePage'
 import HomeworkPage from './pages/homework/HomeworkPage'
 import ClassroomListPage from './pages/classroom/ClassroomListPage'
 import TakeHomeworkPage from './pages/homework/TakeHomeworkPage'
+import AdminPage from './pages/admin/AdminPage'
+import FavoritesPage from './pages/favorites/FavoritesPage'
 
 export default function App() {
   const loadUser = useAuthStore((s) => s.loadUser)
@@ -67,6 +70,12 @@ export default function App() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/homework" element={<HomeworkPage />} />
             <Route path="/classrooms" element={<ClassroomListPage />} />
+            <Route path="/favorites" element={<FavoritesPage />} />
+          </Route>
+
+          {/* Admin routes — protected by role check */}
+          <Route element={<AdminRoute />}>
+            <Route path="/admin" element={<AdminPage />} />
           </Route>
         </Route>
 

@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -60,5 +61,22 @@ export class HomeworkController {
   @ApiOperation({ summary: 'Teacher view of submissions' })
   results(@Req() req: any, @Param('id') id: string) {
     return this.svc.getResults(req.user.id, id);
+  }
+
+  @Patch(':id/progress')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Save homework answer progress (auto-save)' })
+  saveProgress(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: { answers: Record<string, number>; lastVisitedIndex: number },
+  ) {
+    return this.svc.saveProgress(id, req.user.id, body);
+  }
+
+  @Get(':id/progress')
+  @ApiOperation({ summary: 'Get homework answer progress' })
+  getProgress(@Req() req: any, @Param('id') id: string) {
+    return this.svc.getProgress(id, req.user.id);
   }
 }

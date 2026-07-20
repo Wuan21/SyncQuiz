@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useParams, useNavigate, useBlocker } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Save, ArrowLeft, Trash2, Image, Clock, Star, ChevronUp, ChevronDown, Sparkles, Upload, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -40,6 +40,12 @@ export default function QuizEditorPage() {
   const [questions, setQuestions] = useState([emptyQuestion()])
   const [activeQ, setActiveQ] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [autoSaving, setAutoSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
+  const [hasChanges, setHasChanges] = useState(false)
+  const [showUnsaved, setShowUnsaved] = useState(false)
+  const saveTimer = useRef(null)
+  const lastSaved = useRef({ meta: null, questions: null })
   const [showAI, setShowAI] = useState(false)
 
   const { data } = useQuery({
@@ -52,12 +58,80 @@ export default function QuizEditorPage() {
     if (data) {
       setMeta({ title: data.title, description: data.description || '', visibility: data.visibility, shuffleQuestions: data.shuffleQuestions })
       setQuestions(data.questions?.length ? data.questions : [emptyQuestion()])
+      lastSaved.current = { meta: data, questions: data.questions }
     }
   }, [data])
+
+  // ── Track unsaved changes ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!data) return
+    const metaChanged = JSON.stringify(meta) !== JSON.stringify(lastSaved.current.meta)
+    const qsChanged = JSON.stringify(questions) !== JSON.stringify(lastSaved.current.questions)
+    setHasChanges(metaChanged || qsChanged)
+  }, [meta, questions, data])
+
+  // ── Debounced autosave (2 seconds after last change) ──────────────────────
+  const debouncedSave = useCallback(async () => {
+    if (!meta.title.trim()) return
+    setSaveStatus('saving')
+    setAutoSaving(true)
+    try {
+      let quizId = id
+      if (isNew) {
+        const quiz = await createQuiz(meta)
+        quizId = quiz.id
+      } else {
+        await updateQuiz(id, meta)
+      }
+      for (let i = 0; i < questions.length; i++) {
+        const q = { ...questions[i], order: i }
+        if (q.id) {
+          await updateQuestion(quizId, q.id, q)
+        } else {
+          await createQuestion(quizId, q)
+        }
+      }
+      lastSaved.current = { meta, questions }
+      setHasChanges(false)
+      setSaveStatus('saved')
+      qc.invalidateQueries(['quizzes'])
+    } catch (_) {
+      setSaveStatus('error')
+    } finally {
+      setAutoSaving(false)
+    }
+  }, [meta, questions, id, isNew, qc])
+
+  useEffect(() => {
+    if (!hasChanges || isNew) return
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(debouncedSave, 2000)
+    return () => clearTimeout(saveTimer.current)
+  }, [hasChanges, debouncedSave, isNew])
+
+  // ── Warn before leaving with unsaved changes ───────────────────────────────
+  useEffect(() => {
+    if (!hasChanges) return
+    const handler = (e) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [hasChanges])
+
+  // ── Back button with unsaved warning ─────────────────────────────────────
+  const handleBack = () => {
+    if (hasChanges) {
+      if (!window.confirm('You have unsaved changes. Leave without saving?')) return
+    }
+    navigate(-1)
+  }
 
   // ── Save all ───────────────────────────────────────────────────────────────
   const save = async () => {
     if (!meta.title.trim()) return toast.error('Quiz title is required')
+    clearTimeout(saveTimer.current)
     setSaving(true)
     try {
       let quizId = id
@@ -79,6 +153,9 @@ export default function QuizEditorPage() {
       }
 
       qc.invalidateQueries(['quizzes'])
+      lastSaved.current = { meta, questions }
+      setHasChanges(false)
+      setSaveStatus('saved')
       toast.success('Quiz saved!')
       if (isNew) navigate(`/quizzes/${quizId}/edit`, { replace: true })
     } catch (err) {
@@ -91,6 +168,7 @@ export default function QuizEditorPage() {
   // ── Question helpers ───────────────────────────────────────────────────────
   const updateQ = (field, value) => {
     setQuestions((qs) => qs.map((q, i) => i === activeQ ? { ...q, [field]: value } : q))
+    setHasChanges(true)
   }
 
   const updateOption = (optIdx, field, value) => {
@@ -102,11 +180,13 @@ export default function QuizEditorPage() {
       })
       return { ...q, options }
     }))
+    setHasChanges(true)
   }
 
   const addQuestion = () => {
     setQuestions((qs) => [...qs, emptyQuestion()])
     setActiveQ(questions.length)
+    setHasChanges(true)
   }
 
   const removeQuestion = async (idx) => {
@@ -116,6 +196,7 @@ export default function QuizEditorPage() {
     }
     setQuestions((qs) => qs.filter((_, i) => i !== idx))
     setActiveQ(Math.max(0, idx - 1))
+    setHasChanges(true)
   }
 
   const moveQ = (idx, dir) => {
@@ -125,6 +206,7 @@ export default function QuizEditorPage() {
     ;[qs[idx], qs[to]] = [qs[to], qs[idx]]
     setQuestions(qs)
     setActiveQ(to)
+    setHasChanges(true)
   }
 
   // ── Image upload ───────────────────────────────────────────────────────────
@@ -189,7 +271,7 @@ export default function QuizEditorPage() {
       {/* ── Top Bar ── */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-gray-950 shrink-0">
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <button onClick={() => navigate(-1)}
+          <button onClick={handleBack}
             className="w-8 h-8 rounded-lg bg-white/8 hover:bg-white/15 flex items-center justify-center text-white/60 hover:text-white transition-all shrink-0">
             <ArrowLeft size={16} />
           </button>
@@ -200,6 +282,18 @@ export default function QuizEditorPage() {
             className="bg-transparent text-lg font-bold outline-none text-white placeholder-white/25 flex-1 min-w-0"
           />
           <span className="text-white/25 text-sm shrink-0">{questions.length} câu</span>
+          {saveStatus === 'saving' && (
+            <span className="text-xs text-yellow-400 animate-pulse shrink-0">Auto-saving...</span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="text-xs text-green-400 shrink-0">Saved</span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="text-xs text-red-400 shrink-0">Save failed</span>
+          )}
+          {hasChanges && saveStatus === 'idle' && (
+            <span className="text-xs text-white/30 shrink-0">Unsaved</span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 ml-4 shrink-0">

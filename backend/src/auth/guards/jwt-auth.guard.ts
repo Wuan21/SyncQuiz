@@ -1,4 +1,8 @@
-import { Injectable, ExecutionContext } from '@nestjs/common';
+import {
+  Injectable,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
@@ -62,6 +66,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
         }
 
         if (user) {
+          // Block inactive users
+          if (!user.isActive) {
+            throw new UnauthorizedException('Account is deactivated');
+          }
           req.user = {
             id: (user as any)._id?.toString() || user.id,
             email: user.email,

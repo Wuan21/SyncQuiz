@@ -48,4 +48,28 @@ export class UsersRepository {
   async softDeleteById(id: string): Promise<void> {
     await this.userModel.findByIdAndUpdate(id, { deletedAt: new Date() });
   }
+
+  async toggleFavorite(
+    userId: string,
+    quizId: string,
+  ): Promise<{ isFavorite: boolean }> {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) return { isFavorite: false };
+    const isFavorite = user.favoriteQuizIds?.includes(quizId);
+    if (isFavorite) {
+      await this.userModel.findByIdAndUpdate(userId, {
+        $pull: { favoriteQuizIds: quizId },
+      });
+    } else {
+      await this.userModel.findByIdAndUpdate(userId, {
+        $addToSet: { favoriteQuizIds: quizId },
+      });
+    }
+    return { isFavorite: !isFavorite };
+  }
+
+  async getFavoriteIds(userId: string): Promise<string[]> {
+    const user: any = await this.userModel.findById(userId).exec();
+    return user?.favoriteQuizIds || [];
+  }
 }

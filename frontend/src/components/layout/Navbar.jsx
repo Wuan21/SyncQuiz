@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Zap, LayoutDashboard, BookOpen, Compass, LogOut, Menu, X, TrendingUp, ClipboardList, Users } from 'lucide-react'
+import { Zap, LayoutDashboard, BookOpen, Compass, LogOut, Menu, X, TrendingUp, ClipboardList, Users, Shield } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useAuthStore from '../../store/useAuthStore'
@@ -12,6 +12,8 @@ const navLinks = [
   { to: '/analytics', key: 'analytics', icon: TrendingUp },
   { to: '/homework', key: 'homework', icon: ClipboardList },
 ]
+
+const adminLink = { to: '/admin', key: 'admin', icon: Shield }
 
 export default function Navbar() {
   const { t, i18n } = useTranslation()
@@ -61,6 +63,21 @@ export default function Navbar() {
                 {t(`nav.${key}`)}
               </NavLink>
             ))}
+            {user?.role === 'admin' && (
+              <NavLink
+                to={adminLink.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-red-600/20 text-red-300'
+                      : 'text-white/50 hover:text-white hover:bg-white/8'
+                  }`
+                }
+              >
+                <adminLink.icon size={15} />
+                {t(`nav.${adminLink.key}`)}
+              </NavLink>
+            )}
           </div>
         )}
 

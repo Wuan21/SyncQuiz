@@ -22,37 +22,40 @@ export default function HostGamePage() {
   useEffect(() => {
     let mounted = true
 
-    if (!socket.connected) {
+    const attachSession = () => {
       const hostRaw = sessionStorage.getItem('syncquiz-host-session')
-      if (hostRaw) {
-        try {
-          const session = JSON.parse(hostRaw)
-          connectSocket()
-            .then(() => {
-              if (!mounted) return
-              socket.emit('host:attach-game', { gameId: session.gameId, pin: session.pin }, (result) => {
-                if (result?.gameState === 'running') {
-                  if (result.question) {
-                    setQuestion({ ...result.question, index: result.currentIdx, total: result.totalQuestions })
-                  }
-                  if (result.timeLeft !== undefined) {
-                    setTimeLeft(result.timeLeft)
-                  }
-                  if (result.answerCount) {
-                    setAnswerCount(result.answerCount)
-                  }
-                  setPhase('question')
-                }
-              })
-            })
-            .catch(console.error)
-        } catch (_) {}
-      }
+      if (!hostRaw) return
+      try {
+        const session = JSON.parse(hostRaw)
+        socket.emit('host:attach-game', { gameId: session.gameId, pin: session.pin }, (result) => {
+          if (!mounted) return
+          if (result?.gameState === 'running') {
+            if (result.question) {
+              setQuestion({ ...result.question, index: result.currentIdx, total: result.totalQuestions })
+            }
+            if (result.timeLeft !== undefined) {
+              setTimeLeft(result.timeLeft)
+            }
+            if (result.answerCount) {
+              setAnswerCount(result.answerCount)
+            }
+            setPhase('question')
+          }
+        })
+      } catch (_) {}
     }
 
-    return () => {
-      mounted = false
+    if (socket.connected) {
+      attachSession()
+    } else {
+      connectSocket()
+        .then(() => {
+          if (mounted) attachSession()
+        })
+        .catch(console.error)
     }
+
+    return () => { mounted = false }
   }, [])
 
   useEffect(() => {

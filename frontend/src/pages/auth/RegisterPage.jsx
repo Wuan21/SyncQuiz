@@ -43,15 +43,15 @@ export default function RegisterPage() {
         
         if (signUpResult.nextStep.signUpStep === 'CONFIRM_SIGN_UP') {
           setStep('confirm')
-          toast.success(t('auth.verificationSent', 'Verification code sent to your email!'))
+          toast.success(t('auth.verificationSent'))
         } else {
-          toast.success(t('auth.signupSuccess', 'Account created!'))
+          toast.success(t('auth.signupSuccess'))
           navigate('/login')
         }
       } else {
         const res = await apiRegister({ email: data.email, password: data.password, fullName: data.fullName })
         loginSuccess(res)
-        toast.success(t('auth.signupSuccess', 'Account created!'))
+        toast.success(t('auth.signupSuccess'))
         navigate('/dashboard')
       }
     } catch (err) {
@@ -65,7 +65,7 @@ export default function RegisterPage() {
     setIsConfirming(true)
     try {
       await confirmSignUp({ username: signUpUsername, confirmationCode: code })
-      toast.success(t('auth.verificationSuccess', 'Verification successful! You can now log in.'))
+      toast.success(t('auth.verificationSuccess'))
       navigate('/login')
     } catch (err) {
       toast.error(err.message || t('common.error'))

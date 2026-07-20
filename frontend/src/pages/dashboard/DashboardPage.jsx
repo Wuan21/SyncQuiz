@@ -39,8 +39,8 @@ export default function DashboardPage() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value={analytics?.quizCount} color="bg-violet-600" />
-        <StatCard icon={Zap} label={t('dashboard.gamesHosted', 'Games Hosted')} value={analytics?.totalSessions} color="bg-pink-600" />
-        <StatCard icon={Users} label={t('dashboard.avgPlayers', 'Avg Players')} value={analytics?.avgPlayers} color="bg-blue-600" />
+        <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value={analytics?.totalSessions} color="bg-pink-600" />
+        <StatCard icon={Users} label={t('dashboard.avgPlayers')} value={analytics?.avgPlayers} color="bg-blue-600" />
       </div>
 
       {/* Quick actions */}
@@ -52,7 +52,7 @@ export default function DashboardPage() {
           </div>
           <div>
             <p className="font-semibold text-lg">{t('dashboard.createQuizBtn')}</p>
-            <p className="text-white/50 text-sm">{t('dashboard.createQuizDesc', 'Build a new quiz from scratch')}</p>
+            <p className="text-white/50 text-sm">{t('dashboard.createQuizDesc')}</p>
           </div>
         </Link>
 
@@ -63,7 +63,7 @@ export default function DashboardPage() {
           </div>
           <div>
             <p className="font-semibold text-lg">{t('nav.joinGame')}</p>
-            <p className="text-white/50 text-sm">{t('dashboard.joinGameDesc', 'Enter a PIN to join a live quiz')}</p>
+            <p className="text-white/50 text-sm">{t('dashboard.joinGameDesc')}</p>
           </div>
         </Link>
       </div>
@@ -71,15 +71,15 @@ export default function DashboardPage() {
       {/* My Quizzes */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">{t('dashboard.myQuizzes', 'My Quizzes')}</h2>
-          <Link to="/quizzes" className="text-violet-400 text-sm hover:underline">{t('dashboard.viewAll', 'View all →')}</Link>
+          <h2 className="text-xl font-bold">{t('dashboard.myQuizzes')}</h2>
+          <Link to="/quizzes" className="text-violet-400 text-sm hover:underline">{t('dashboard.viewAll')}</Link>
         </div>
 
         {myQuizzes?.quizzes?.length === 0 ? (
           <div className="card text-center py-12">
             <BookOpen size={40} className="mx-auto text-white/20 mb-3" />
             <p className="text-white/50">{t('dashboard.noQuizzesYet')}</p>
-            <Link to="/quizzes/new" className="btn-primary inline-block mt-4 text-sm">{t('dashboard.createFirstQuiz', 'Create your first quiz')}</Link>
+            <Link to="/quizzes/new" className="btn-primary inline-block mt-4 text-sm">{t('dashboard.createFirstQuiz')}</Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -104,10 +104,10 @@ function QuizCard({ quiz }) {
         }
       </div>
       <h3 className="font-semibold truncate">{quiz.title}</h3>
-      <p className="text-white/40 text-sm mt-1">{quiz.questionCount} {t('dashboard.questionsCount', 'questions')}</p>
+      <p className="text-white/40 text-sm mt-1">{quiz.questionCount} {t('dashboard.questionsCount', { count: quiz.questionCount })}</p>
       <div className="flex gap-2 mt-3">
-        <Link to={`/quizzes/${quiz.id}/edit`} className="btn-secondary text-xs py-1.5 flex-1 text-center">{t('common.edit', 'Edit')}</Link>
-        <Link to={`/host/${quiz.id}`} className="btn-primary text-xs py-1.5 flex-1 text-center">{t('dashboard.host', 'Host')}</Link>
+        <Link to={`/quizzes/${quiz.id}/edit`} className="btn-secondary text-xs py-1.5 flex-1 text-center">{t('common.edit')}</Link>
+        <Link to={`/host/${quiz.id}`} className="btn-primary text-xs py-1.5 flex-1 text-center">{t('dashboard.host')}</Link>
       </div>
     </div>
   )

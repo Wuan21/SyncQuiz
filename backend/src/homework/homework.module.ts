@@ -7,6 +7,8 @@ import {
   HomeworkSchema,
   HomeworkSubmission,
   HomeworkSubmissionSchema,
+  HomeworkProgress,
+  HomeworkProgressSchema,
 } from './schemas/homework.schema';
 import {
   Classroom,
@@ -20,6 +22,7 @@ import { Question, QuestionSchema } from '../questions/schemas/question.schema';
     MongooseModule.forFeature([
       { name: Homework.name, schema: HomeworkSchema },
       { name: HomeworkSubmission.name, schema: HomeworkSubmissionSchema },
+      { name: HomeworkProgress.name, schema: HomeworkProgressSchema },
       { name: Classroom.name, schema: ClassroomSchema },
       { name: Quiz.name, schema: QuizSchema },
       { name: Question.name, schema: QuestionSchema },

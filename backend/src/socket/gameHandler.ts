@@ -52,6 +52,8 @@ type GameState = {
   questionStartTs: number;
   questionDurationMs: number;
   paused: boolean;
+  /** When reloaded from DB, skip emitting question in sendNextQuestion (already emitted in callback) */
+  skipNextQuestion?: boolean;
 };
 
 let io: Server;
@@ -88,6 +90,197 @@ function getAchievementModel(): mongoose.Model<any> {
 
 function getGameRoom(gameId: string): string {
   return `game:${gameId}`;
+}
+
+/* ── Persist game state to MongoDB ──────────────────────────────── */
+async function persistGameState(gameId: string, game: GameState) {
+  try {
+    const SessionModel = getSessionModel();
+    const playerUpdates = Object.values(game.players).map((p) => ({
+      playerId: p.playerId,
+      socketId: p.socketId,
+      totalScore: p.totalScore,
+      streak: p.streak,
+      connected: !!p.socketId,
+      answers: p.answers,
+    }));
+    await SessionModel.updateOne(
+      { _id: gameId },
+      {
+        $set: {
+          status: game.status,
+          currentQuestionIndex: game.currentIdx,
+          activeQuestion:
+            game.currentIdx >= 0 && game.currentIdx < game.questions.length
+              ? {
+                  questionId:
+                    game.questions[game.currentIdx]._id?.toString?.() ||
+                    game.questions[game.currentIdx].id,
+                  questionIndex: game.currentIdx,
+                  startTime: game.questionStartTs,
+                  durationMs: game.questionDurationMs,
+                  removedOptions: [],
+                }
+              : null,
+          players: playerUpdates,
+        },
+      },
+    );
+  } catch (err: any) {
+    console.error('[PERSIST ERROR]', err.message);
+  }
+}
+
+/* ── Reload active game from MongoDB (server restart recovery) ── */
+async function reloadFromDB(
+  gameId: string,
+  socketId: string,
+  isHost: boolean,
+): Promise<{ success: boolean; gameState?: any; error?: any }> {
+  try {
+    const SessionModel = getSessionModel();
+    const QuestionModel = getQuestionModel();
+
+    const session: any = await SessionModel.findById(gameId).lean();
+    if (!session) {
+      return {
+        success: false,
+        error: { code: 'GAME_NOT_FOUND', message: 'Không tìm thấy phòng' },
+      };
+    }
+
+    if (
+      session.status === GameSessionStatus.ENDED ||
+      session.status === GameSessionStatus.FINISHED
+    ) {
+      return {
+        success: false,
+        error: { code: 'GAME_ENDED', message: 'Phòng chơi đã kết thúc' },
+      };
+    }
+
+    if (!session.activeQuestion) {
+      // Game was started but no active question yet (edge case)
+      return {
+        success: true,
+        gameState: {
+          players: (session.players || []).map((p: any) => ({
+            playerId: p.playerId,
+            nickname: p.nickname,
+            teamName: p.teamName,
+            avatar: p.avatar,
+            avatarIndex: p.avatarIndex,
+            connected: p.connected,
+          })),
+          gameState: 'waiting',
+        },
+      };
+    }
+
+    // Load questions from DB
+    const questions = await QuestionModel.find({ quizId: session.quizId })
+      .sort({ order: 1 })
+      .lean();
+
+    const activeQ = questions[session.activeQuestion.questionIndex];
+    if (!activeQ) {
+      return {
+        success: false,
+        error: { code: 'GAME_ERROR', message: 'Không tìm thấy câu hỏi' },
+      };
+    }
+
+    // Reconstruct in-memory state
+    const playerMap: Record<string, PlayerState> = {};
+    const byPlayerId: Record<string, PlayerState> = {};
+    for (const p of session.players || []) {
+      const state: PlayerState = {
+        socketId: isHost ? null : socketId,
+        playerId: p.playerId,
+        userId: null,
+        nickname: p.nickname,
+        avatarIndex: p.avatarIndex ?? 0,
+        teamName: p.teamName || null,
+        totalScore: p.totalScore || 0,
+        streak: p.streak || 0,
+        answers: p.answers || [],
+        powerUps: { ...DEFAULT_POWERUPS },
+        activePowerUp: null,
+      };
+      const sockId = isHost ? null : socketId;
+      if (sockId) playerMap[sockId] = state;
+      byPlayerId[p.playerId] = state;
+    }
+
+    // Restore removed options from activeAnswers (fifty_fifty)
+    const removedByPlayer: Record<string, number[]> = {};
+    for (const ans of session.activeAnswers || []) {
+      // We can't fully restore powerup state, but we track which options were removed
+    }
+
+    const game: GameState = {
+      sessionId: gameId,
+      pin: session.pin,
+      hostId: session.hostId,
+      hostSocketId: isHost ? socketId : '',
+      questions,
+      currentIdx: session.activeQuestion.questionIndex,
+      players: playerMap,
+      playerByPlayerId: byPlayerId,
+      answers: {},
+      status: session.status,
+      questionTimer: null,
+      questionStartTs: session.activeQuestion.startTime || Date.now(),
+      questionDurationMs: session.activeQuestion.durationMs || 30000,
+      paused: session.status === GameSessionStatus.PAUSED,
+      // Tell sendNextQuestion not to re-emit the current question
+      skipNextQuestion: true,
+    };
+    activeGames.set(gameId, game);
+
+    const total = questions.length;
+    const timeLeft = session.activeQuestion.durationMs
+      ? Math.max(
+          0,
+          Math.floor(
+            (session.activeQuestion.durationMs -
+              (Date.now() - (session.activeQuestion.startTime || Date.now()))) /
+              1000,
+          ),
+        )
+      : 0;
+
+    return {
+      success: true,
+      gameState: {
+        players: (session.players || []).map((p: any) => ({
+          playerId: p.playerId,
+          nickname: p.nickname,
+          teamName: p.teamName,
+          avatar: p.avatar,
+          avatarIndex: p.avatarIndex,
+          connected: p.connected,
+        })),
+        gameState: 'running',
+        currentIdx: session.activeQuestion.questionIndex,
+        totalQuestions: total,
+        question: activeQ,
+        timeLimit: Math.ceil(
+          (session.activeQuestion.durationMs || 30000) / 1000,
+        ),
+        timeLeft,
+        answerCount: {
+          answered: session.activeAnswers?.length || 0,
+          total: (session.players || []).length,
+        },
+      },
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: { code: 'RELOAD_ERROR', message: err.message },
+    };
+  }
 }
 
 function snapshotPlayers(game: GameState) {
@@ -245,7 +438,7 @@ export const initSocket = (server: any) => {
           socket.data.gameId = gameId;
           socket.data.pin = game.pin;
 
-          // If a game is already in progress in memory, rebind host socket
+          // Try in-memory first, then reload from DB if server restarted
           const existing = activeGames.get(gameId);
           if (existing) {
             existing.hostSocketId = socket.id;
@@ -272,6 +465,30 @@ export const initSocket = (server: any) => {
                 total: Object.keys(existing.players).length,
               },
             });
+          }
+
+          // Server restarted — try to reload from DB
+          const dbReload = await reloadFromDB(gameId, socket.id, true);
+          if (dbReload.success) {
+            if (dbReload.gameState?.gameState === 'running') {
+              // Restore host socket ID in game state
+              const restoredGame = activeGames.get(gameId);
+              if (restoredGame) restoredGame.hostSocketId = socket.id;
+              return cb({
+                success: true,
+                gameId,
+                players: dbReload.gameState.players,
+                gameState: 'running',
+                currentIdx: dbReload.gameState.currentIdx,
+                totalQuestions: dbReload.gameState.totalQuestions,
+                question: dbReload.gameState.question,
+                timeLimit: dbReload.gameState.timeLimit,
+                timeLeft: dbReload.gameState.timeLeft,
+                answerCount: dbReload.gameState.answerCount,
+                // DO NOT call sendNextQuestion here — question already sent in callback
+                skipNextQuestion: true,
+              });
+            }
           }
 
           return cb({
@@ -370,7 +587,6 @@ export const initSocket = (server: any) => {
           // Re-attach in-memory state if game is active
           const gameState = activeGames.get(gameId);
           if (gameState && !gameState.players[socket.id]) {
-            // Re-create player state from DB
             const restored: PlayerState = {
               socketId: socket.id,
               playerId: player.playerId,
@@ -392,6 +608,66 @@ export const initSocket = (server: any) => {
             };
             gameState.players[socket.id] = restored;
             gameState.playerByPlayerId[player.playerId] = restored;
+          }
+
+          // If no in-memory state, try to reload from DB (server restarted)
+          if (
+            !gameState &&
+            (game.status === GameSessionStatus.ACTIVE ||
+              game.status === GameSessionStatus.PAUSED)
+          ) {
+            const dbReload = await reloadFromDB(gameId, socket.id, false);
+            if (
+              dbReload.success &&
+              dbReload.gameState?.gameState === 'running'
+            ) {
+              const restoredGame = activeGames.get(gameId);
+              if (restoredGame && !restoredGame.players[socket.id]) {
+                const restored: PlayerState = {
+                  socketId: socket.id,
+                  playerId: player.playerId,
+                  userId: null,
+                  nickname: player.nickname,
+                  avatarIndex: player.avatarIndex ?? 0,
+                  teamName: player.teamName || null,
+                  totalScore: player.totalScore || 0,
+                  streak: player.streak || 0,
+                  answers: (player.answers || []).map((a: any) => ({
+                    questionId: a.questionId,
+                    selectedOption: a.selectedOption,
+                    isCorrect: a.isCorrect,
+                    pointsEarned: a.pointsEarned,
+                    timeSpent: a.timeSpent,
+                  })),
+                  powerUps: { ...DEFAULT_POWERUPS },
+                  activePowerUp: null,
+                };
+                restoredGame.players[socket.id] = restored;
+                restoredGame.playerByPlayerId[player.playerId] = restored;
+              }
+            }
+          }
+
+          // Send current question to player if game is active
+          const restoredGame2 = activeGames.get(gameId);
+          if (
+            restoredGame2 &&
+            (game.status === GameSessionStatus.ACTIVE ||
+              game.status === GameSessionStatus.PAUSED) &&
+            restoredGame2.currentIdx >= 0 &&
+            restoredGame2.currentIdx < restoredGame2.questions.length
+          ) {
+            const q = restoredGame2.questions[restoredGame2.currentIdx];
+            const playerQ = {
+              index: restoredGame2.currentIdx,
+              total: restoredGame2.questions.length,
+              questionId: q._id?.toString?.() || q.id,
+              content: q.content,
+              options: q.options,
+              timeLimit: q.timeLimit,
+              type: q.type,
+            };
+            socket.emit('game:question', playerQ);
           }
 
           return cb({ success: true, gameId, playerId: player.playerId });
@@ -497,7 +773,7 @@ export const initSocket = (server: any) => {
     });
 
     /* ── HOST: pause / resume ───────────────────────────────────────── */
-    socket.on('host:pause', () => {
+    socket.on('host:pause', async () => {
       const gameId = socket.data.gameId;
       const game = activeGames.get(gameId);
       if (!game || game.hostSocketId !== socket.id) return;
@@ -506,9 +782,10 @@ export const initSocket = (server: any) => {
       game.status = GameSessionStatus.PAUSED;
       game.paused = true;
       io.to(getGameRoom(gameId)).emit('game:paused');
+      await persistGameState(gameId, game);
     });
 
-    socket.on('host:resume', () => {
+    socket.on('host:resume', async () => {
       const gameId = socket.data.gameId;
       const game = activeGames.get(gameId);
       if (!game || game.hostSocketId !== socket.id) return;
@@ -523,6 +800,7 @@ export const initSocket = (server: any) => {
         remainingMs + 1000,
       );
       io.to(getGameRoom(gameId)).emit('game:resumed');
+      await persistGameState(gameId, game);
     });
 
     /* ── HOST: skip time / next / end ───────────────────────────────── */
@@ -552,7 +830,7 @@ export const initSocket = (server: any) => {
     /* ── PLAYER: submit answer ───────────────────────────────────────── */
     socket.on(
       'player:answer',
-      ({
+      async ({
         optionIndex,
         timeSpent,
       }: {
@@ -616,9 +894,12 @@ export const initSocket = (server: any) => {
           });
         }
 
+        // Persist score to MongoDB after each answer
+        await persistGameState(gameId, game);
+
         if (total > 0 && answered >= total) {
           clearTimeout(game.questionTimer);
-          endQuestion(gameId);
+          void endQuestion(gameId);
         }
       },
     );
@@ -741,12 +1022,45 @@ function sendNextQuestion(gameId: string) {
   const game = activeGames.get(gameId);
   if (!game) return;
 
+  let q: any;
+
+  // On first call after reload-from-DB, skipNextQuestion is set → do NOT increment idx
+  if (game.skipNextQuestion) {
+    game.skipNextQuestion = false;
+    q = game.questions[game.currentIdx];
+    // Emit question at currentIdx (already correct from DB) to host
+    if (game.hostSocketId) {
+      io.to(game.hostSocketId).emit('host:question', {
+        index: game.currentIdx,
+        total: game.questions.length,
+        question: q,
+        timeLimit: q.timeLimit,
+      });
+    }
+    // Start timer
+    game.questionTimer = setTimeout(
+      () => endQuestion(gameId),
+      (game.questionDurationMs || 30000) + 1500,
+    );
+    const playerQuestion = {
+      index: game.currentIdx,
+      total: game.questions.length,
+      questionId: q._id?.toString?.() || q.id,
+      content: q.content,
+      options: q.options,
+      timeLimit: q.timeLimit,
+      type: q.type,
+    };
+    io.to(getGameRoom(gameId)).emit('game:question', playerQuestion);
+    return;
+  }
+
   game.currentIdx++;
   if (game.currentIdx >= game.questions.length) {
     return endGame(gameId);
   }
 
-  const q = game.questions[game.currentIdx];
+  q = game.questions[game.currentIdx];
   const total = game.questions.length;
   const room = getGameRoom(gameId);
 
@@ -786,11 +1100,21 @@ function sendNextQuestion(gameId: string) {
     game.questionDurationMs + 1500,
   );
 
+  // Persist active question state to MongoDB
+  void persistGameState(gameId, game);
+
   void (async () => {
     try {
       const SessionModel = getSessionModel();
       await SessionModel.findByIdAndUpdate(gameId, {
         currentQuestionIndex: game.currentIdx,
+        activeQuestion: {
+          questionId: q._id?.toString?.() || q.id,
+          questionIndex: game.currentIdx,
+          startTime: game.questionStartTs,
+          durationMs: game.questionDurationMs,
+          removedOptions: [],
+        },
       });
     } catch (_) {}
   })();
@@ -815,6 +1139,22 @@ function endQuestion(gameId: string) {
     leaderboard,
     answerCount: Object.keys(game.answers[idx] || {}).length,
   });
+
+  // Clear activeQuestion in DB (question ended, showing leaderboard)
+  void (async () => {
+    try {
+      const SessionModel = getSessionModel();
+      await SessionModel.updateOne(
+        { _id: gameId },
+        {
+          $set: {
+            activeQuestion: null,
+            activeAnswers: [],
+          },
+        },
+      );
+    } catch (_) {}
+  })();
 }
 
 async function endGame(gameId: string) {

@@ -47,11 +47,21 @@ export default function LoginPage() {
         }
         const user = await syncUser()
         loginSuccess(user)
+        // Redirect admin to admin dashboard, others to regular dashboard
+        if (user?.role === 'admin') {
+          navigate('/admin', { replace: true })
+        } else {
+          navigate('/dashboard', { replace: true })
+        }
       } else {
         const res = await login(data)
         loginSuccess(res)
+        if (res?.user?.role === 'admin') {
+          navigate('/admin', { replace: true })
+        } else {
+          navigate('/dashboard', { replace: true })
+        }
       }
-      navigate('/dashboard')
     } catch (err) {
       toast.error(err.message || err.response?.data?.message || t('common.error'))
     }
