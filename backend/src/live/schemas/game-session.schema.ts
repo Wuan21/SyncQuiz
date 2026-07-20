@@ -5,8 +5,8 @@ export type GameSessionDocument = GameSession & Document;
 
 @Schema({ _id: false })
 export class PlayerAnswer {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Question' })
-  questionId: MongooseSchema.Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.Mixed })
+  questionId: any;
 
   @Prop({ default: null })
   selectedOption: number;
@@ -28,8 +28,8 @@ export const PlayerAnswerSchema = SchemaFactory.createForClass(PlayerAnswer);
 
 @Schema({ _id: false })
 export class Player {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', default: null })
-  userId: MongooseSchema.Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.Mixed, default: null })
+  userId: any;
 
   @Prop({ required: true, maxlength: 30 })
   nickname: string;
@@ -54,11 +54,11 @@ export const PlayerSchema = SchemaFactory.createForClass(Player);
 
 @Schema({ timestamps: true, collection: 'gamesessions' })
 export class GameSession {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Quiz', required: true })
-  quizId: MongooseSchema.Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.Mixed, required: true })
+  quizId: any;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
-  hostId: MongooseSchema.Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.Mixed, required: true })
+  hostId: any;
 
   @Prop({ required: true, unique: true, index: true })
   pin: string;
