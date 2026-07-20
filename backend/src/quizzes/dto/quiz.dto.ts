@@ -8,6 +8,7 @@ import {
   Max,
   MaxLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { QuizVisibility } from '../schemas/quiz.schema';
 
@@ -61,18 +62,25 @@ export class SearchQuizDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  search?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   categoryId?: string;
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   page?: number;
 
   @ApiPropertyOptional({ default: 20 })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
-  @Max(50)
+  @Max(100)
   limit?: number;
 }

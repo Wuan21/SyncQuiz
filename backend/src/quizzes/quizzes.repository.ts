@@ -16,7 +16,8 @@ export class QuizzesRepository {
   }
 
   async findPublic(dto: SearchQuizDto) {
-    const { q, categoryId, page = 1, limit = 20 } = dto;
+    const { categoryId, page = 1, limit = 20 } = dto;
+    const q = dto.search || dto.q;
     const filter: FilterQuery<QuizDocument> = {
       visibility: QuizVisibility.PUBLIC,
       isDeleted: false,
@@ -48,7 +49,8 @@ export class QuizzesRepository {
   }
 
   async findByOwner(ownerId: string, dto: SearchQuizDto) {
-    const { q, page = 1, limit = 20 } = dto;
+    const { page = 1, limit = 20 } = dto;
+    const q = dto.search || dto.q;
 
     const ownerFilter = Types.ObjectId.isValid(ownerId)
       ? {
