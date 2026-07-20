@@ -15,6 +15,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthModule } from './health/health.module';
 
 import { AiModule } from './ai/ai.module';
+import { QuestionsModule } from './questions/questions.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AiModule } from './ai/ai.module';
     AuthModule,
     UsersModule,
     QuizzesModule,
+    QuestionsModule,
     CategoriesModule,
     ClassroomsModule,
     HomeworkModule,

@@ -93,4 +93,11 @@ export class QuizzesRepository {
   async incrementPlays(id: string): Promise<void> {
     await this.quizModel.updateOne({ _id: id }, { $inc: { totalPlays: 1 } });
   }
+
+  async incrementQuestionCount(id: string, amount: number): Promise<void> {
+    await this.quizModel.updateOne(
+      { _id: id },
+      { $inc: { questionCount: amount } },
+    );
+  }
 }
