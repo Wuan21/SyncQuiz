@@ -3,6 +3,20 @@ import * as jwt from 'jsonwebtoken';
 import * as mongoose from 'mongoose';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { awardAchievement } from '../analytics/schemas/achievement.schema';
+import { GameSessionSchema } from '../live/schemas/game-session.schema';
+import { QuestionSchema } from '../questions/schemas/question.schema';
+
+// Safe model getters to prevent MissingSchemaError
+function getSessionModel(): mongoose.Model<any> {
+  return (
+    mongoose.models.GameSession ||
+    mongoose.model('GameSession', GameSessionSchema)
+  );
+}
+
+function getQuestionModel(): mongoose.Model<any> {
+  return mongoose.models.Question || mongoose.model('Question', QuestionSchema);
+}
 
 // In-memory store for active games (PIN → game state)
 const activeGames = new Map<string, any>();
@@ -108,10 +122,8 @@ export const initSocket = (server: any) => {
     if (game) return game;
 
     try {
-      const SessionModel =
-        mongoose.models.GameSession || mongoose.model('GameSession');
-      const QuestionModel =
-        mongoose.models.Question || mongoose.model('Question');
+      const SessionModel = getSessionModel();
+      const QuestionModel = getQuestionModel();
 
       const numericPin = Number(normalizedPin);
       const pinFilter = !isNaN(numericPin)
@@ -128,9 +140,14 @@ export const initSocket = (server: any) => {
         return null;
       }
 
-      const questions = await QuestionModel.find({ quizId: session.quizId })
-        .sort({ order: 1 })
-        .lean();
+      let questions = [];
+      try {
+        questions = await QuestionModel.find({ quizId: session.quizId })
+          .sort({ order: 1 })
+          .lean();
+      } catch (qErr: any) {
+        console.error('[SOCKET] Error fetching questions:', qErr.message);
+      }
 
       game = {
         sessionId: session._id.toString(),
@@ -171,8 +188,7 @@ export const initSocket = (server: any) => {
               message: 'Unauthenticated',
             });
 
-          const SessionModel =
-            mongoose.models.GameSession || mongoose.model('GameSession');
+          const SessionModel = getSessionModel();
 
           let session: any = null;
           if (sessionId) {
@@ -350,8 +366,7 @@ export const initSocket = (server: any) => {
       if (!game || game.hostSocketId !== socket.id) return;
 
       game.status = 'active';
-      const SessionModel =
-        mongoose.models.GameSession || mongoose.model('GameSession');
+      const SessionModel = getSessionModel();
 
       const numericPin = Number(pin);
       const pinFilter = !isNaN(numericPin)
@@ -651,8 +666,7 @@ async function endGame(pin: string) {
 
   // Persist to DB + award achievements
   try {
-    const SessionModel =
-      mongoose.models.GameSession || mongoose.model('GameSession');
+    const SessionModel = getSessionModel();
     const AchievementModel =
       mongoose.models.Achievement || mongoose.model('Achievement');
 
