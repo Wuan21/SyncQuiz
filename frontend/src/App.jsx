@@ -21,6 +21,7 @@ import PlayerGamePage from './pages/game/PlayerGamePage'
 import ResultsPage from './pages/game/ResultsPage'
 import ExplorePage from './pages/ExplorePage'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
+import ProfilePage from './pages/auth/ProfilePage'
 import HomeworkPage from './pages/homework/HomeworkPage'
 import ClassroomListPage from './pages/classroom/ClassroomListPage'
 import TakeHomeworkPage from './pages/homework/TakeHomeworkPage'
@@ -63,6 +64,7 @@ export default function App() {
             <Route path="/host/game/:pin" element={<HostGamePage />} />
             <Route path="/results/:sessionId" element={<ResultsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/homework" element={<HomeworkPage />} />
             <Route path="/classrooms" element={<ClassroomListPage />} />
           </Route>

@@ -5,8 +5,8 @@ export type UserDocument = User & Document;
 
 export enum UserRole {
   ADMIN = 'admin',
-  TEACHER = 'teacher',
-  STUDENT = 'student',
+  HOST = 'host',
+  PLAYER = 'player',
 }
 
 @Schema({ timestamps: true, collection: 'users' })
@@ -26,7 +26,7 @@ export class User {
   @Prop({ default: null })
   avatarUrl: string;
 
-  @Prop({ type: String, enum: UserRole, default: UserRole.STUDENT })
+  @Prop({ type: String, enum: UserRole, default: UserRole.PLAYER })
   role: UserRole;
 
   @Prop({ default: true })

@@ -82,11 +82,14 @@ export default function Navbar() {
                 {t('nav.joinGame')}
               </Link>
               <div className="flex items-center gap-2">
-                <img
-                  src={user.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.email}`}
-                  alt={user.fullName}
-                  className="w-8 h-8 rounded-full bg-violet-700"
-                />
+                <Link to="/profile">
+                  <img
+                    src={user.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.email}`}
+                    alt={user.fullName}
+                    className="w-8 h-8 rounded-full bg-violet-700 hover:ring-2 hover:ring-violet-400 transition-all cursor-pointer"
+                    title="Hồ sơ cá nhân"
+                  />
+                </Link>
                 <button onClick={handleLogout} className="text-white/40 hover:text-white transition-colors" title={t('nav.logout')}>
                   <LogOut size={18} />
                 </button>
