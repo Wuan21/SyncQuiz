@@ -10,12 +10,7 @@ import { UsersModule } from '../users/users.module';
 
 @Global()
 @Module({
-  imports: [
-    ConfigModule,
-    PassportModule,
-    JwtModule.register({}),
-    UsersModule,
-  ],
+  imports: [ConfigModule, PassportModule, JwtModule.register({}), UsersModule],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard],
   exports: [AuthService, JwtAuthGuard],

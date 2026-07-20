@@ -19,7 +19,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       try {
         this.cognitoVerifier = CognitoJwtVerifier.create({
           userPoolId: poolId,
-          tokenUse: (this.config.get<string>('AWS_COGNITO_TOKEN_USE') as any) || 'id',
+          tokenUse:
+            (this.config.get<string>('AWS_COGNITO_TOKEN_USE') as any) || 'id',
           clientId: clientId,
         });
       } catch (e) {
@@ -55,7 +56,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             fullName,
           });
         } else if (user && !user.cognitoId) {
-          await this.usersRepo.updateById((user as any)._id || user.id, { cognitoId });
+          await this.usersRepo.updateById((user as any)._id || user.id, {
+            cognitoId,
+          });
         }
 
         if (user) {

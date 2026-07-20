@@ -43,6 +43,12 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
+
+  // Initialize Socket.IO real-time multiplayer server (Kahoot-style)
+
+  const { initSocket } = require('./socket/gameHandler');
+  initSocket(app.getHttpServer());
+
   console.log(`🚀 SyncQuiz API running on http://localhost:${port}/api`);
   console.log(`📖 Swagger docs at http://localhost:${port}/docs`);
 }
