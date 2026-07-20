@@ -55,6 +55,7 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   /* ── Global role guard ────────────────────────────────────────── */
+  // RolesGuard is applied per-route via @UseGuards
   app.useGlobalGuards(new RolesGuard(new Reflector()));
 
   /* ── Swagger docs ─────────────────────────────────────────────── */
