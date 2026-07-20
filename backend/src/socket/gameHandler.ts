@@ -98,7 +98,7 @@ export const initSocket = (server: any) => {
         const QuestionModel =
           mongoose.models.Question || mongoose.model('Question');
 
-        const session = await SessionModel.findById(sessionId).lean();
+        const session: any = await SessionModel.findById(sessionId).lean();
         if (!session)
           return socket.emit('error', { message: 'Session not found' });
         if (session.hostId.toString() !== socket.user.sub)
