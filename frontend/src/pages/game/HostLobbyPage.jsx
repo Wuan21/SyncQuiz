@@ -1,75 +1,118 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
 import { Users, Play, Copy, QrCode, X } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import { createSession } from '../../api/game.api'
-import useSocketStore from '../../store/useSocketStore'
+import { socket, connectSocket } from '../../store/useSocketStore'
 
 export default function HostLobbyPage() {
   const { quizId } = useParams()
   const navigate = useNavigate()
-  const { socket, connect } = useSocketStore()
-  const [session, setSession] = useState(null)
+  const [gameId, setGameId] = useState(null)
+  const [pin, setPin] = useState(null)
   const [players, setPlayers] = useState([])
   const [showQR, setShowQR] = useState(false)
+  const [phase, setPhase] = useState('creating') // creating | lobby | error
+  const [errorMsg, setErrorMsg] = useState('')
   const hasCreated = useRef(false)
 
-  const joinUrl = session ? `${window.location.origin}/join/${session.pin}` : ''
+  const joinUrl = pin ? `${window.location.origin}/join/${pin}` : ''
 
-  const createMut = useMutation({
-    mutationFn: () => createSession({ quizId }),
-    onSuccess: (data) => {
-      console.log('[HOST LOBBY] Session created successfully:', data)
-      setSession(data)
-    },
-    onError: (err) => toast.error(err.response?.data?.message || 'Failed to create game'),
-  })
-
+  /* ── Create session + attach socket ─────────────────────────────────── */
   useEffect(() => {
-    if (!hasCreated.current && quizId) {
-      hasCreated.current = true
-      createMut.mutate()
+    if (hasCreated.current || !quizId) return
+    hasCreated.current = true
+
+    async function init() {
+      try {
+        // Step 1: REST create session
+        const response = await createSession({ quizId })
+        const data = response.data || response
+        const newGameId = data.gameId || data.id || data._id
+        const newPin = data.pin
+
+        if (!newGameId || !newPin) {
+          setPhase('error')
+          setErrorMsg('Không thể tạo phòng chơi')
+          return
+        }
+
+        setGameId(newGameId)
+        setPin(newPin)
+
+        // Step 2: Connect Socket.IO
+        await connectSocket()
+
+        // Step 3: Emit host:attach-game with acknowledgment
+        await new Promise((resolve, reject) => {
+          const timeoutId = window.setTimeout(() => {
+            reject(new Error('Host attach timeout'))
+          }, 15000)
+
+          socket.emit(
+            'host:attach-game',
+            { gameId: newGameId, pin: newPin },
+            (result) => {
+              window.clearTimeout(timeoutId)
+              if (!result?.success) {
+                reject(new Error(result?.message || 'Host attach failed'))
+                return
+              }
+              // Set initial player list from attach response
+              if (result.players) {
+                setPlayers(result.players)
+              }
+              resolve(result)
+            },
+          )
+        })
+
+        // Save host session for reconnect
+        sessionStorage.setItem(
+          'syncquiz-host-session',
+          JSON.stringify({ gameId: newGameId, pin: newPin }),
+        )
+
+        setPhase('lobby')
+      } catch (err) {
+        console.error('[HOST LOBBY] Init error:', err)
+        setPhase('error')
+        setErrorMsg(err?.response?.data?.message || err?.message || 'Failed to create game')
+        toast.error(err?.response?.data?.message || err?.message || 'Failed to create game')
+      }
     }
+
+    init()
   }, [quizId]) // eslint-disable-line
 
+  /* ── Listen for player list updates ─────────────────────────────────── */
   useEffect(() => {
-    if (!session) return
-    const sock = connect() || socket
-    if (!sock) return
+    const handlePlayers = (playerList) => {
+      setPlayers(playerList)
+    }
 
-    const sId = session.id || session._id
-    sock.emit('host:join', { sessionId: sId, pin: session.pin })
-
-    sock.on('host:joined', (data) => {
-      if (data.players) setPlayers(data.players)
+    socket.on('player-list:updated', handlePlayers)
+    socket.on('game:started', () => {
+      if (pin) navigate(`/host/game/${pin}`)
     })
-    sock.on('host:lobby_update', ({ players: ps }) => setPlayers(ps))
-    sock.on('host:player_joined', ({ playerCount }) => {
-      toast.success(`Có người chơi mới tham gia (${playerCount} người)`)
-    })
-    sock.on('game:started', () => navigate(`/host/game/${session.pin}`))
 
     return () => {
-      sock.off('host:joined')
-      sock.off('host:lobby_update')
-      sock.off('host:player_joined')
-      sock.off('game:started')
+      socket.off('player-list:updated', handlePlayers)
+      socket.off('game:started')
     }
-  }, [session, socket]) // eslint-disable-line
+  }, [pin, navigate])
 
-  useEffect(() => { connect() }, []) // eslint-disable-line
-
+  /* ── Start game ─────────────────────────────────────────────────────── */
   const startGame = () => {
-    const sock = socket || connect()
-    if (!sock || !session) return
-    if (players.length === 0) return toast.error('Wait for at least 1 player')
-    sock.emit('host:start')
+    if (!socket.connected || !gameId) return
+    if (players.length === 0) return toast.error('Cần ít nhất 1 người chơi')
+    socket.emit('host:start')
   }
 
-  if (createMut.isPending) return <Centered>Creating game...</Centered>
-  if (!session) return null
+  /* ── Render ─────────────────────────────────────────────────────────── */
+  if (phase === 'creating') return <Centered>Creating game...</Centered>
+  if (phase === 'error') return <Centered>{errorMsg || 'Something went wrong'}</Centered>
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-4">
@@ -78,11 +121,11 @@ export default function HostLobbyPage() {
         <div className="card mb-6">
           <p className="text-white/50 text-sm mb-2">Game PIN</p>
           <div className="text-6xl font-black tracking-widest text-violet-400 font-mono">
-            {session.pin}
+            {pin}
           </div>
           <div className="flex gap-2 justify-center">
             <button
-              onClick={() => { navigator.clipboard.writeText(session.pin); toast.success('PIN copied!') }}
+              onClick={() => { navigator.clipboard.writeText(pin); toast.success('PIN copied!') }}
               className="btn-secondary mt-4 text-sm flex items-center gap-2"
             >
               <Copy size={14} /> Copy PIN
@@ -114,8 +157,10 @@ export default function HostLobbyPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
               {players.map((p, i) => (
-                <div key={i} className="bg-white/5 rounded-lg px-3 py-2 text-sm truncate">
-                  {p.nickname}
+                <div key={p.playerId || i} className="bg-white/5 rounded-lg px-3 py-2 text-sm truncate flex items-center gap-2">
+                  <span>{p.avatar || '😀'}</span>
+                  <span>{p.nickname}</span>
+                  {p.connected && <div className="w-1.5 h-1.5 rounded-full bg-green-400 ml-auto" />}
                 </div>
               ))}
             </div>
@@ -142,7 +187,7 @@ export default function HostLobbyPage() {
               <QRCodeSVG value={joinUrl} size={200} />
             </div>
             <p className="text-white/50 text-sm">{joinUrl}</p>
-            <p className="text-4xl font-black font-mono text-violet-400 mt-3">{session.pin}</p>
+            <p className="text-4xl font-black font-mono text-violet-400 mt-3">{pin}</p>
           </div>
         </div>
       )}

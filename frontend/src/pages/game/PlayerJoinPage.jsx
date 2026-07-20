@@ -3,101 +3,142 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { getSessionByPin } from '../../api/game.api'
-import useSocketStore from '../../store/useSocketStore'
+import { joinSession } from '../../api/game.api'
+import { socket, connectSocket } from '../../store/useSocketStore'
 
 const AVATARS = ['😀', '🐶', '🦊', '🐱', '🐸', '🦄', '🐙', '🦋', '🎃', '🚀']
+
+function normalizePin(value) {
+  return String(value ?? '').replace(/\s+/g, '').trim()
+}
+
+function showJoinError(error) {
+  const code = error?.response?.data?.code ?? error?.code
+  const message = error?.response?.data?.message ?? error?.message
+
+  switch (code) {
+    case 'GAME_NOT_FOUND':
+      toast.error('Không tìm thấy phòng chơi với mã PIN này')
+      return
+    case 'INVALID_PIN':
+      toast.error('Mã PIN không hợp lệ')
+      return
+    case 'GAME_EXPIRED':
+      toast.error('Phòng chơi đã hết hạn')
+      return
+    case 'GAME_ENDED':
+      toast.error('Phòng chơi đã kết thúc')
+      return
+    case 'GAME_ALREADY_STARTED':
+      toast.error('Game đã bắt đầu')
+      return
+    case 'NICKNAME_TAKEN':
+      toast.error('Nickname này đã có người sử dụng')
+      return
+    case 'NICKNAME_REQUIRED':
+      toast.error('Vui lòng nhập nickname')
+      return
+    case 'SOCKET_CONNECTION_TIMEOUT':
+    case 'SOCKET_CONNECTION_FAILED':
+    case 'SOCKET_ATTACH_TIMEOUT':
+      toast.error('Không thể kết nối với máy chủ realtime')
+      return
+    case 'PLAYER_ATTACH_FAILED':
+    case 'PLAYER_NOT_FOUND':
+      toast.error('Không thể kết nối người chơi với phòng')
+      return
+    default:
+      toast.error(message || 'Không thể tham gia game')
+  }
+}
 
 export default function PlayerJoinPage() {
   const { pin: pinParam } = useParams()
   const navigate = useNavigate()
-  const { socket, connect } = useSocketStore()
   const { register, handleSubmit } = useForm({
-    defaultValues: { pin: pinParam || '', nickname: '' },
+    defaultValues: { pin: pinParam || '', nickname: '', teamName: '' },
   })
   const [avatarIdx, setAvatarIdx] = useState(0)
-  const [joining, setJoining] = useState(false)
+  const [isJoining, setIsJoining] = useState(false)
 
-  const onSubmit = async ({ pin, nickname, teamName }) => {
-    if (joining) return
-    const cleanPin = String(pin || '').trim()
-    const cleanNick = String(nickname || '').trim()
+  async function joinGame({ pin, nickname, teamName }) {
+    const normalizedPin = normalizePin(pin)
+    const cleanNick = String(nickname ?? '').trim()
+    const cleanTeam = String(teamName ?? '').trim()
+    const avatar = AVATARS[avatarIdx]
+
+    // Step 1: REST join
+    const response = await joinSession({
+      pin: normalizedPin,
+      nickname: cleanNick,
+      teamName: cleanTeam,
+      avatar,
+    })
+
+    const { gameId, playerId } = response.data
+
+    // Step 2: Connect Socket.IO
+    await connectSocket()
+
+    // Step 3: Emit player:attach-game with acknowledgment
+    await new Promise((resolve, reject) => {
+      const timeoutId = window.setTimeout(() => {
+        reject(
+          Object.assign(new Error('Socket attach timeout'), {
+            code: 'SOCKET_ATTACH_TIMEOUT',
+          }),
+        )
+      }, 15000)
+
+      socket.emit(
+        'player:attach-game',
+        { gameId, playerId, pin: normalizedPin },
+        (result) => {
+          window.clearTimeout(timeoutId)
+          if (!result?.success) {
+            reject(result)
+            return
+          }
+          resolve(result)
+        },
+      )
+    })
+
+    // Step 4: Save session and navigate
+    sessionStorage.setItem(
+      'syncquiz-player-session',
+      JSON.stringify({
+        gameId,
+        playerId,
+        pin: normalizedPin,
+        nickname: cleanNick,
+        teamName: cleanTeam,
+        avatar,
+      }),
+    )
+
+    navigate(`/play/${gameId}/lobby`)
+  }
+
+  async function onSubmit(data) {
+    if (isJoining) return
+    const cleanPin = normalizePin(data.pin)
+    const cleanNick = String(data.nickname ?? '').trim()
 
     if (!cleanPin || !cleanNick) {
-      toast.dismiss()
-      return toast.error('Vui lòng nhập PIN và Nickname')
+      toast.error('Vui lòng nhập PIN và Nickname')
+      return
     }
 
-    setJoining(true)
+    setIsJoining(true)
     toast.dismiss()
 
     try {
-      // Step 1: Validate session via REST API
-      const session = await getSessionByPin(cleanPin)
-      if (session.status === 'finished' || session.status === 'ended') {
-        setJoining(false)
-        return toast.error('Phòng chơi đã kết thúc')
-      }
-
-      // Step 2: Connect Socket.IO
-      const sock = connect() || socket || useSocketStore.getState().socket
-      if (!sock) {
-        setJoining(false)
-        return toast.error('Không thể kết nối đến máy chủ WebSocket')
-      }
-
-      const joinPayload = {
-        pin: cleanPin,
-        nickname: cleanNick,
-        avatarIndex: avatarIdx,
-        teamName: teamName?.trim() || null,
-      }
-
-      // Step 3: Join game via Socket.IO with callback acknowledgment
-      sock.emit('player:join', joinPayload, (response) => {
-        if (response && !response.success) {
-          setJoining(false)
-          const code = response.code
-          toast.dismiss()
-          if (code === 'GAME_NOT_FOUND') toast.error('Không tìm thấy phòng chơi với mã PIN này')
-          else if (code === 'GAME_ENDED') toast.error('Phòng chơi đã kết thúc')
-          else if (code === 'NICKNAME_TAKEN') toast.error('Nickname này đã có người sử dụng')
-          else toast.error(response.message || 'Không thể tham gia game')
-        }
-      })
-
-      const handleJoined = (res) => {
-        sock.off('error', handleError)
-        setJoining(false)
-        navigate(`/play/${cleanPin}?nickname=${encodeURIComponent(cleanNick)}`)
-      }
-
-      const handleError = (err) => {
-        sock.off('player:joined', handleJoined)
-        setJoining(false)
-        const code = err?.code
-        const msg = typeof err === 'string' ? err : err?.message
-        toast.dismiss()
-        if (code === 'GAME_NOT_FOUND') toast.error('Không tìm thấy phòng chơi với mã PIN này')
-        else if (code === 'GAME_ENDED') toast.error('Phòng chơi đã kết thúc')
-        else if (code === 'NICKNAME_TAKEN') toast.error('Nickname này đã có người sử dụng')
-        else toast.error(msg || 'Không thể tham gia phòng chơi')
-      }
-
-      sock.once('player:joined', handleJoined)
-      sock.once('error', handleError)
-    } catch (err) {
-      setJoining(false)
-      toast.dismiss()
-      const code = err.response?.data?.code
-      const msg = err.response?.data?.message || err.message
-      if (code === 'GAME_NOT_FOUND' || err.response?.status === 404) {
-        toast.error('Không tìm thấy phòng chơi với mã PIN này')
-      } else if (code === 'GAME_ENDED' || err.response?.status === 410) {
-        toast.error('Phòng chơi đã kết thúc')
-      } else {
-        toast.error(msg || 'Không thể kiểm tra mã PIN')
-      }
+      await joinGame(data)
+    } catch (error) {
+      showJoinError(error)
+    } finally {
+      setIsJoining(false)
     }
   }
 
@@ -168,8 +209,8 @@ export default function PlayerJoinPage() {
               </div>
             </div>
 
-            <button type="submit" disabled={joining} className="btn-primary w-full py-3.5 text-base">
-              {joining ? 'Đang vào...' : 'Vào game 🚀'}
+            <button type="submit" disabled={isJoining} className="btn-primary w-full py-3.5 text-base">
+              {isJoining ? 'Đang vào...' : 'Vào game 🚀'}
             </button>
           </form>
         </div>

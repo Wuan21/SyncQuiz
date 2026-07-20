@@ -1,37 +1,81 @@
 import { useEffect, useState, useRef } from 'react'
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
+import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Trophy, Clock, Zap } from 'lucide-react'
-import useSocketStore from '../../store/useSocketStore'
+import { socket, connectSocket } from '../../store/useSocketStore'
 
 const COLORS = ['#e53935', '#1e88e5', '#43a047', '#f9a825']
 const SHAPES = ['▲', '◆', '●', '■']
 const AVATARS = ['😀', '🐶', '🦊', '🐱', '🐸', '🦄', '🐙', '🦋', '🎃', '🚀']
 
 export default function PlayerGamePage() {
-  const { pin } = useParams()
+  const { pin, gameId: gameIdParam } = useParams()
   const [searchParams] = useSearchParams()
-  const nickname = searchParams.get('nickname') || 'Player'
+  const location = useLocation()
   const navigate = useNavigate()
-  const { socket } = useSocketStore()
 
-  const [phase, setPhase] = useState('lobby') // lobby | question | answered | result | ended
+  // Determine if we're in lobby mode
+  const isLobbyRoute = location.pathname.includes('/lobby')
+
+  // Get player session from sessionStorage
+  const sessionRaw = sessionStorage.getItem('syncquiz-player-session')
+  const playerSession = sessionRaw ? JSON.parse(sessionRaw) : null
+  const nickname = playerSession?.nickname || searchParams.get('nickname') || 'Player'
+  const avatar = playerSession?.avatar || AVATARS[0]
+
+  const [phase, setPhase] = useState(isLobbyRoute ? 'lobby' : 'lobby')
   const [question, setQuestion] = useState(null)
   const [timeLeft, setTimeLeft] = useState(0)
   const [selected, setSelected] = useState(null)
-  const [feedback, setFeedback] = useState(null) // { isCorrect, pointsEarned, totalScore }
+  const [feedback, setFeedback] = useState(null)
   const [leaderboard, setLeaderboard] = useState([])
   const [correctOptions, setCorrectOptions] = useState([])
-  const [removedOptions, setRemovedOptions] = useState([]) // 50/50
+  const [removedOptions, setRemovedOptions] = useState([])
   const [powerUps, setPowerUps] = useState({ double_points: 1, fifty_fifty: 1, extra_time: 1 })
+  const [players, setPlayers] = useState([])
   const answerTs = useRef(null)
+  const hasAttached = useRef(false)
 
+  /* ── Reconnect socket + re-attach on mount ────────────────────────────── */
   useEffect(() => {
-    if (!socket) return
+    if (hasAttached.current) return
+    hasAttached.current = true
 
-    socket.on('game:started', () => setPhase('question'))
+    async function attachPlayer() {
+      if (!playerSession) return
 
-    socket.on('game:question', (q) => {
+      try {
+        await connectSocket()
+
+        // Re-attach player to game via socket
+        socket.emit(
+          'player:attach-game',
+          {
+            gameId: playerSession.gameId,
+            playerId: playerSession.playerId,
+            pin: playerSession.pin,
+          },
+          (result) => {
+            if (result?.success) {
+              console.log('[PLAYER GAME] Re-attached to game')
+            } else {
+              console.warn('[PLAYER GAME] Re-attach failed:', result)
+            }
+          },
+        )
+      } catch (err) {
+        console.error('[PLAYER GAME] Socket connect error:', err)
+      }
+    }
+
+    attachPlayer()
+  }, []) // eslint-disable-line
+
+  /* ── Socket event listeners ─────────────────────────────────────────── */
+  useEffect(() => {
+    const handleStarted = () => setPhase('question')
+
+    const handleQuestion = (q) => {
       setQuestion(q)
       setTimeLeft(q.timeLimit)
       setSelected(null)
@@ -40,42 +84,63 @@ export default function PlayerGamePage() {
       setRemovedOptions([])
       setPhase('question')
       answerTs.current = Date.now()
-    })
+    }
 
-    socket.on('powerup:activated', ({ type, removedOptions: ro }) => {
+    const handlePowerUp = ({ type, removedOptions: ro }) => {
       if (type === 'fifty_fifty' && ro) setRemovedOptions(ro)
-    })
+    }
 
-    socket.on('player:answer_ack', (data) => {
+    const handleAnswerAck = (data) => {
       setFeedback(data)
       setPhase('answered')
-    })
+    }
 
-    socket.on('game:question_end', ({ correctOptions: co, leaderboard: lb }) => {
+    const handleQuestionEnd = ({ correctOptions: co, leaderboard: lb }) => {
       setCorrectOptions(co)
       setLeaderboard(lb)
       setPhase('result')
-    })
+    }
 
-    socket.on('game:ended', ({ leaderboard: lb }) => {
+    const handleEnded = ({ leaderboard: lb }) => {
       setLeaderboard(lb)
       setPhase('ended')
-    })
+    }
 
-    socket.on('game:extra_time', ({ seconds }) => {
+    const handleExtraTime = ({ seconds }) => {
       setTimeLeft((prev) => prev + seconds)
-    })
+    }
 
-    socket.on('game:host_left', () => {
+    const handleHostLeft = () => {
       alert('Host has left the game')
       navigate('/')
-    })
+    }
+
+    const handlePlayerList = (list) => {
+      setPlayers(list)
+    }
+
+    socket.on('game:started', handleStarted)
+    socket.on('game:question', handleQuestion)
+    socket.on('powerup:activated', handlePowerUp)
+    socket.on('player:answer_ack', handleAnswerAck)
+    socket.on('game:question_end', handleQuestionEnd)
+    socket.on('game:ended', handleEnded)
+    socket.on('game:extra_time', handleExtraTime)
+    socket.on('game:host_left', handleHostLeft)
+    socket.on('player-list:updated', handlePlayerList)
 
     return () => {
-      ;['game:started', 'game:question', 'player:answer_ack', 'game:question_end', 'game:ended', 'game:host_left', 'game:extra_time']
-        .forEach((e) => socket.off(e))
+      socket.off('game:started', handleStarted)
+      socket.off('game:question', handleQuestion)
+      socket.off('powerup:activated', handlePowerUp)
+      socket.off('player:answer_ack', handleAnswerAck)
+      socket.off('game:question_end', handleQuestionEnd)
+      socket.off('game:ended', handleEnded)
+      socket.off('game:extra_time', handleExtraTime)
+      socket.off('game:host_left', handleHostLeft)
+      socket.off('player-list:updated', handlePlayerList)
     }
-  }, [socket]) // eslint-disable-line
+  }, [navigate])
 
   // Countdown
   useEffect(() => {
@@ -86,7 +151,7 @@ export default function PlayerGamePage() {
 
   const usePowerUp = (type) => {
     if (!powerUps[type] || selected !== null) return
-    socket?.emit('player:powerup', { type })
+    socket.emit('player:powerup', { type })
     setPowerUps((p) => ({ ...p, [type]: 0 }))
   }
 
@@ -94,14 +159,14 @@ export default function PlayerGamePage() {
     if (phase !== 'question' || selected !== null) return
     const timeSpent = Date.now() - (answerTs.current || Date.now())
     setSelected(optionIndex)
-    socket?.emit('player:answer', { optionIndex, timeSpent })
+    socket.emit('player:answer', { optionIndex, timeSpent })
   }
 
   // ── Lobby ────────────────────────────────────────────────────────────────
   if (phase === 'lobby') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-violet-900 to-gray-950 flex flex-col items-center justify-center p-4">
-        <div className="text-6xl mb-4 animate-bounce">{AVATARS[0]}</div>
+        <div className="text-6xl mb-4 animate-bounce">{avatar}</div>
         <h2 className="text-2xl font-bold mb-2">{nickname}</h2>
         <p className="text-white/50">Waiting for the host to start...</p>
         <div className="flex gap-1 mt-6">

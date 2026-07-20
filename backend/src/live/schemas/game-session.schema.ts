@@ -3,6 +3,7 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 
 export type GameSessionDocument = GameSession & Document;
 
+/* ── Player answer sub-document ─────────────────────────────────────────── */
 @Schema({ _id: false })
 export class PlayerAnswer {
   @Prop({ type: MongooseSchema.Types.Mixed })
@@ -26,17 +27,34 @@ export class PlayerAnswer {
 
 export const PlayerAnswerSchema = SchemaFactory.createForClass(PlayerAnswer);
 
+/* ── Game player sub-document ───────────────────────────────────────────── */
 @Schema({ _id: false })
-export class Player {
-  @Prop({ type: MongooseSchema.Types.Mixed, default: null })
-  userId: any;
+export class GamePlayer {
+  @Prop({ required: true })
+  playerId: string;
 
-  @Prop({ required: true, maxlength: 30 })
+  @Prop({ default: null })
+  socketId: string;
+
+  @Prop({ required: true, trim: true, maxlength: 30 })
   nickname: string;
+
+  @Prop({ default: '', trim: true })
+  teamName: string;
+
+  @Prop({ required: true })
+  avatar: string;
 
   @Prop({ default: 0 })
   avatarIndex: number;
 
+  @Prop({ default: false })
+  connected: boolean;
+
+  @Prop({ default: Date.now })
+  joinedAt: Date;
+
+  /* Scoring fields (populated during / after game) */
   @Prop({ default: 0 })
   totalScore: number;
 
@@ -50,34 +68,39 @@ export class Player {
   answers: PlayerAnswer[];
 }
 
-export const PlayerSchema = SchemaFactory.createForClass(Player);
+export const GamePlayerSchema = SchemaFactory.createForClass(GamePlayer);
 
+/* ── Main GameSession document ──────────────────────────────────────────── */
 @Schema({ timestamps: true, collection: 'gamesessions' })
 export class GameSession {
-  @Prop({ type: MongooseSchema.Types.Mixed, required: true })
+  @Prop({ type: String, required: true, unique: true, index: true, trim: true })
+  pin: string;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Quiz', required: true })
   quizId: any;
 
-  @Prop({ type: MongooseSchema.Types.Mixed, required: true })
-  hostId: any;
-
-  @Prop({ required: true, unique: true, index: true })
-  pin: string;
+  @Prop({ type: String, required: true, index: true })
+  hostId: string;
 
   @Prop({
     type: String,
-    enum: ['waiting', 'active', 'finished'],
+    enum: ['waiting', 'active', 'finished', 'ended'],
     default: 'waiting',
+    index: true,
   })
   status: string;
+
+  @Prop({ type: [GamePlayerSchema], default: [] })
+  players: GamePlayer[];
 
   @Prop({ default: -1 })
   currentQuestionIndex: number;
 
-  @Prop({ type: [PlayerSchema], default: [] })
-  players: Player[];
-
   @Prop({ default: 0 })
   totalQuestions: number;
+
+  @Prop({ type: Date, required: true })
+  expiresAt: Date;
 
   @Prop({ default: null })
   startedAt: Date;
@@ -100,6 +123,7 @@ export const GameSessionSchema = SchemaFactory.createForClass(GameSession);
 
 GameSessionSchema.index({ hostId: 1 });
 GameSessionSchema.index({ quizId: 1 });
+GameSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 GameSessionSchema.set('toJSON', {
   virtuals: true,

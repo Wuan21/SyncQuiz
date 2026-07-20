@@ -44,6 +44,7 @@ export default function App() {
         <Route path="/join" element={<PlayerJoinPage />} />
         <Route path="/join/:pin" element={<PlayerJoinPage />} />
         <Route path="/play/:pin" element={<PlayerGamePage />} />
+        <Route path="/play/:gameId/lobby" element={<PlayerGamePage />} />
         
         {/* Full-screen protected routes (no navbar) */}
         <Route element={<ProtectedRoute />}>

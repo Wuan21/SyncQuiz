@@ -3,6 +3,7 @@ const ctrl = require('../controllers/sessions.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 
 router.post('/', authenticate, ctrl.create);
+router.post('/join', ctrl.joinByPin);
 router.get('/history', authenticate, ctrl.myHistory);
 router.get('/pin/:pin', ctrl.getByPin);
 router.get('/:id/result', authenticate, ctrl.getResult);

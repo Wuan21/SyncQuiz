@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Users, Trophy, ChevronRight, Clock } from 'lucide-react'
-import useSocketStore from '../../store/useSocketStore'
+import { socket } from '../../store/useSocketStore'
 
 const COLORS = ['#e53935', '#1e88e5', '#43a047', '#f9a825']
 const SHAPES = ['▲', '◆', '●', '■']
@@ -9,7 +9,6 @@ const SHAPES = ['▲', '◆', '●', '■']
 export default function HostGamePage() {
   const { pin } = useParams()
   const navigate = useNavigate()
-  const { socket } = useSocketStore()
 
   const [phase, setPhase] = useState('waiting') // waiting | question | answer | ended
   const [question, setQuestion] = useState(null)
@@ -19,41 +18,45 @@ export default function HostGamePage() {
   const [correctOptions, setCorrectOptions] = useState([])
 
   useEffect(() => {
-    if (!socket) return
-
-    socket.on('host:question', ({ question: q, timeLimit, index, total }) => {
+    const handleQuestion = ({ question: q, timeLimit, index, total }) => {
       setQuestion({ ...q, index, total })
       setTimeLeft(timeLimit)
       setPhase('question')
       setAnswerCount({ answered: 0, total: 0 })
       setCorrectOptions([])
-    })
+    }
 
-    socket.on('host:answer_count', (data) => setAnswerCount(data))
+    const handleAnswerCount = (data) => setAnswerCount(data)
 
-    socket.on('game:question_end', ({ correctOptions: co, leaderboard: lb, answerCount: ac }) => {
+    const handleQuestionEnd = ({ correctOptions: co, leaderboard: lb }) => {
       setCorrectOptions(co)
       setLeaderboard(lb)
       setPhase('answer')
-    })
+    }
 
-    socket.on('game:ended', ({ leaderboard: lb }) => {
+    const handleEnded = ({ leaderboard: lb }) => {
       setLeaderboard(lb)
       setPhase('ended')
-    })
+    }
 
-    socket.on('game:extra_time', ({ seconds }) => {
+    const handleExtraTime = ({ seconds }) => {
       setTimeLeft((prev) => prev + seconds)
-    })
+    }
+
+    socket.on('host:question', handleQuestion)
+    socket.on('host:answer_count', handleAnswerCount)
+    socket.on('game:question_end', handleQuestionEnd)
+    socket.on('game:ended', handleEnded)
+    socket.on('game:extra_time', handleExtraTime)
 
     return () => {
-      socket.off('host:question')
-      socket.off('host:answer_count')
-      socket.off('game:question_end')
-      socket.off('game:ended')
-      socket.off('game:extra_time')
+      socket.off('host:question', handleQuestion)
+      socket.off('host:answer_count', handleAnswerCount)
+      socket.off('game:question_end', handleQuestionEnd)
+      socket.off('game:ended', handleEnded)
+      socket.off('game:extra_time', handleExtraTime)
     }
-  }, [socket])
+  }, [])
 
   // Countdown timer
   useEffect(() => {
@@ -62,7 +65,7 @@ export default function HostGamePage() {
     return () => clearInterval(t)
   }, [phase, timeLeft])
 
-  const next = () => socket?.emit('host:next')
+  const next = () => socket.emit('host:next')
 
   if (phase === 'ended') {
     return (

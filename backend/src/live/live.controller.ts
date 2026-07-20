@@ -32,6 +32,20 @@ export class LiveController {
     return this.liveService.createSession(req.user.id, dto);
   }
 
+  @Post('join')
+  @ApiOperation({ summary: 'Player joins a game session by PIN' })
+  joinSession(
+    @Body()
+    dto: {
+      pin: string;
+      nickname: string;
+      teamName?: string;
+      avatar?: string;
+    },
+  ) {
+    return this.liveService.joinSession(dto);
+  }
+
   @Get('history')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

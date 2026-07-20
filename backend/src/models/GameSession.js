@@ -4,20 +4,25 @@ const mongoose = require('mongoose');
 const playerAnswerSchema = new mongoose.Schema(
   {
     questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question' },
-    selectedOption: { type: Number, default: null }, // index of option
-    answerText: { type: String, default: null },     // for fill_blank
+    selectedOption: { type: Number, default: null },
+    answerText: { type: String, default: null },
     isCorrect: { type: Boolean, default: false },
     pointsEarned: { type: Number, default: 0 },
-    timeSpent: { type: Number, default: 0 }, // ms
+    timeSpent: { type: Number, default: 0 },
   },
   { _id: false },
 );
 
-const playerSchema = new mongoose.Schema(
+const gamePlayerSchema = new mongoose.Schema(
   {
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-    nickname: { type: String, required: true, maxlength: 30 },
+    playerId: { type: String, required: true },
+    socketId: { type: String, default: null },
+    nickname: { type: String, required: true, trim: true, maxlength: 30 },
+    teamName: { type: String, default: '', trim: true },
+    avatar: { type: String, default: '😀' },
     avatarIndex: { type: Number, default: 0 },
+    connected: { type: Boolean, default: false },
+    joinedAt: { type: Date, default: Date.now },
     totalScore: { type: Number, default: 0 },
     rank: { type: Number, default: 0 },
     streak: { type: Number, default: 0 },
@@ -29,17 +34,19 @@ const playerSchema = new mongoose.Schema(
 // ── Main session schema ────────────────────────────────────────────────────────
 const gameSessionSchema = new mongoose.Schema(
   {
+    pin: { type: String, required: true, unique: true, index: true, trim: true },
     quizId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quiz', required: true },
-    hostId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    pin: { type: String, required: true, unique: true, index: true },
+    hostId: { type: String, required: true, index: true },
     status: {
       type: String,
-      enum: ['waiting', 'active', 'finished'],
+      enum: ['waiting', 'active', 'finished', 'ended'],
       default: 'waiting',
+      index: true,
     },
+    players: { type: [gamePlayerSchema], default: [] },
     currentQuestionIndex: { type: Number, default: -1 },
-    players: { type: [playerSchema], default: [] },
     totalQuestions: { type: Number, default: 0 },
+    expiresAt: { type: Date, required: true },
     startedAt: { type: Date, default: null },
     endedAt: { type: Date, default: null },
     settings: {
@@ -50,6 +57,7 @@ const gameSessionSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    collection: 'gamesessions',
     toJSON: {
       virtuals: true,
       transform(_doc, ret) {
@@ -64,6 +72,8 @@ const gameSessionSchema = new mongoose.Schema(
 
 gameSessionSchema.index({ hostId: 1 });
 gameSessionSchema.index({ quizId: 1 });
+gameSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-const GameSession = mongoose.model('GameSession', gameSessionSchema);
+const GameSession =
+  mongoose.models.GameSession || mongoose.model('GameSession', gameSessionSchema);
 module.exports = GameSession;

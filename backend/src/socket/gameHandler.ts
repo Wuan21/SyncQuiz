@@ -6,6 +6,18 @@ import { awardAchievement } from '../analytics/schemas/achievement.schema';
 import { GameSessionSchema } from '../live/schemas/game-session.schema';
 import { QuestionSchema } from '../questions/schemas/question.schema';
 
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
+
+function normalizePin(value: any): string {
+  return String(value ?? '')
+    .replace(/\s+/g, '')
+    .trim();
+}
+
+function getGameRoom(gameId: string): string {
+  return `game:${gameId}`;
+}
+
 // Safe model getters to prevent MissingSchemaError
 function getSessionModel(): mongoose.Model<any> {
   return (
@@ -18,12 +30,10 @@ function getQuestionModel(): mongoose.Model<any> {
   return mongoose.models.Question || mongoose.model('Question', QuestionSchema);
 }
 
-// In-memory store for active games (PIN → game state)
+/* ── In-memory game state for active play (scoring, timers) ──────────────── */
 const activeGames = new Map<string, any>();
 
 const ANSWER_COLORS = ['#e53935', '#1e88e5', '#43a047', '#f9a825'];
-
-// Power-ups available per player per game
 const DEFAULT_POWERUPS = { double_points: 1, fifty_fifty: 1, extra_time: 1 };
 
 function calculateScore(
@@ -47,16 +57,31 @@ let io: Server;
 export const initSocket = (server: any) => {
   const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
     .split(',')
-    .map((s) => s.trim());
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   io = new Server(server, {
     cors: {
-      origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
+      origin: (origin: any, cb: any) => {
+        if (!origin) return cb(null, true);
+        const cleanOrigin = String(origin).replace(/\/$/, '');
+        const isAllowed = allowedOrigins.some(
+          (co) => co === '*' || co.replace(/\/$/, '') === cleanOrigin,
+        );
+        if (isAllowed || process.env.NODE_ENV !== 'production') {
+          return cb(null, true);
+        }
+        return cb(null, true); // Allow for live game (mobile browsers)
+      },
       credentials: true,
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      methods: ['GET', 'POST'],
     },
+    transports: ['websocket', 'polling'],
+    pingTimeout: 30000,
+    pingInterval: 25000,
   });
 
+  /* ── Cognito verifier ────────────────────────────────────────────────── */
   let cognitoVerifier: any = null;
   if (
     process.env.AWS_COGNITO_USER_POOL_ID &&
@@ -73,7 +98,7 @@ export const initSocket = (server: any) => {
     }
   }
 
-  // ── Auth middleware ────────────────────────────────────────────────────────
+  /* ── Auth middleware (optional — players don't need auth) ─────────────── */
   io.use(async (socket: any, next) => {
     const token = socket.handshake.auth?.token;
     if (token) {
@@ -110,288 +135,248 @@ export const initSocket = (server: any) => {
         };
       } catch (_) {}
     }
-    next();
+    next(); // Allow unauthenticated connections (players)
   });
 
-  // Helper to ensure game exists in RAM or restore from MongoDB
-  async function ensureGameLoaded(pin: string) {
-    const normalizedPin = String(pin || '').trim();
-    if (!normalizedPin) return null;
-
-    let game = activeGames.get(normalizedPin);
-    if (game) return game;
-
-    try {
-      const SessionModel = getSessionModel();
-      const QuestionModel = getQuestionModel();
-
-      const numericPin = Number(normalizedPin);
-      const pinFilter = !isNaN(numericPin)
-        ? { $or: [{ pin: normalizedPin }, { pin: numericPin }] }
-        : { pin: normalizedPin };
-
-      const session: any = await SessionModel.findOne({
-        ...pinFilter,
-        status: { $nin: ['finished', 'ended'] },
-      }).lean();
-
-      if (!session) {
-        console.log('[SOCKET] Session not found in DB for PIN:', normalizedPin);
-        return null;
-      }
-
-      let questions = [];
-      try {
-        questions = await QuestionModel.find({ quizId: session.quizId })
-          .sort({ order: 1 })
-          .lean();
-      } catch (qErr: any) {
-        console.error('[SOCKET] Error fetching questions:', qErr.message);
-      }
-
-      game = {
-        sessionId: session._id.toString(),
-        pin: normalizedPin,
-        hostId: session.hostId?.toString(),
-        hostSocketId: null,
-        questions,
-        currentIdx: session.currentQuestionIndex ?? -1,
-        players: {}, // socketId → player
-        answers: {}, // questionIdx → { socketId: answer }
-        status: session.status === 'active' ? 'active' : 'lobby',
-        questionTimer: null,
-      };
-
-      activeGames.set(normalizedPin, game);
-      console.log(
-        '[SOCKET] Restored active game from DB for PIN:',
-        normalizedPin,
-      );
-      return game;
-    } catch (err: any) {
-      console.error('[SOCKET] Error restoring game:', err.message);
-      return null;
-    }
-  }
-
+  /* ══════════════════════════════════════════════════════════════════════ */
+  /*  CONNECTION HANDLER                                                   */
+  /* ══════════════════════════════════════════════════════════════════════ */
   io.on('connection', (socket: any) => {
-    // ── HOST: create/start game ───────────────────────────────────────────────
+    console.log('[SOCKET] New connection:', socket.id);
+
+    /* ── HOST: attach to game ──────────────────────────────────────────── */
     socket.on(
-      'host:join',
-      async ({ sessionId, pin }: { sessionId?: string; pin?: string }) => {
-        try {
-          const userId =
-            socket.user?.id || socket.user?.sub || socket.user?._id;
-          if (!userId)
-            return socket.emit('error', {
-              code: 'UNAUTHENTICATED',
-              message: 'Unauthenticated',
-            });
-
-          const SessionModel = getSessionModel();
-
-          let session: any = null;
-          if (sessionId) {
-            session = await SessionModel.findById(sessionId).lean();
-          } else if (pin) {
-            const normalizedPin = String(pin).trim();
-            const numericPin = Number(normalizedPin);
-            const pinFilter = !isNaN(numericPin)
-              ? { $or: [{ pin: normalizedPin }, { pin: numericPin }] }
-              : { pin: normalizedPin };
-            session = await SessionModel.findOne(pinFilter).lean();
-          }
-
-          if (!session)
-            return socket.emit('error', {
-              code: 'GAME_NOT_FOUND',
-              message: 'Session not found',
-            });
-
-          if (session.hostId?.toString() !== userId.toString()) {
-            return socket.emit('error', {
-              code: 'FORBIDDEN',
-              message: 'Forbidden',
-            });
-          }
-
-          const normalizedPin = String(session.pin).trim();
-          socket.join(normalizedPin);
-          socket.join(`game:${normalizedPin}`);
-          socket.pin = normalizedPin;
-          socket.role = 'host';
-
-          let game = activeGames.get(normalizedPin);
-          if (!game) {
-            game = await ensureGameLoaded(normalizedPin);
-          }
-
-          if (game) {
-            game.hostSocketId = socket.id;
-          }
-
-          socket.emit('host:joined', {
-            pin: normalizedPin,
-            playerCount: game ? Object.keys(game.players).length : 0,
-            players: game
-              ? Object.values(game.players).map((p: any) => ({
-                  nickname: p.nickname,
-                  avatarIndex: p.avatarIndex,
-                }))
-              : [],
-          });
-        } catch (err: any) {
-          socket.emit('error', {
-            code: 'INTERNAL_ERROR',
-            message: err.message,
-          });
-        }
-      },
-    );
-
-    // ── PLAYER: join lobby ────────────────────────────────────────────────────
-    socket.on(
-      'player:join',
+      'host:attach-game',
       async (
-        {
-          pin,
-          nickname,
-          avatarIndex = 0,
-          teamName = null,
-        }: {
-          pin: string;
-          nickname: string;
-          avatarIndex?: number;
-          teamName?: string;
-        },
+        payload: { gameId: string; pin: string },
         callback?: (res: any) => void,
       ) => {
-        const normalizedPin = String(pin || '').trim();
-        const nickClean = String(nickname || '').trim();
+        const cb = typeof callback === 'function' ? callback : () => {};
+        try {
+          const SessionModel = getSessionModel();
+          const game = await SessionModel.findById(payload.gameId);
 
-        if (!normalizedPin || !nickClean) {
-          const errRes = {
+          if (!game) {
+            cb({
+              success: false,
+              code: 'GAME_NOT_FOUND',
+              message: 'Không tìm thấy phòng',
+            });
+            return;
+          }
+
+          if (game.pin !== normalizePin(payload.pin)) {
+            cb({
+              success: false,
+              code: 'INVALID_PIN',
+              message: 'Mã PIN không hợp lệ',
+            });
+            return;
+          }
+
+          const gameId = game._id.toString();
+          const room = getGameRoom(gameId);
+
+          await socket.join(room);
+          socket.data.role = 'host';
+          socket.data.gameId = gameId;
+          socket.data.pin = game.pin;
+
+          // Build current player list for Host
+          const players = game.players.map((p: any) => ({
+            playerId: p.playerId,
+            nickname: p.nickname,
+            teamName: p.teamName,
+            avatar: p.avatar,
+            avatarIndex: p.avatarIndex,
+            connected: p.connected,
+          }));
+
+          console.log('[SOCKET] Host attached to game:', gameId, 'room:', room);
+          cb({ success: true, gameId, players });
+        } catch (error: any) {
+          console.error('[HOST ATTACH ERROR]', error.message);
+          cb({
             success: false,
-            code: 'INVALID_INPUT',
-            message: 'Mã PIN và Nickname không được để trống',
-          };
-          if (callback) callback(errRes);
-          return socket.emit('error', errRes);
-        }
-
-        const game = await ensureGameLoaded(normalizedPin);
-
-        if (!game) {
-          console.log('[JOIN GAME] Not found', {
-            pin: normalizedPin,
-            collection: 'GameSession',
-          });
-          const errRes = {
-            success: false,
-            code: 'GAME_NOT_FOUND',
-            message: 'Không tìm thấy phòng chơi với mã PIN này',
-          };
-          if (callback) callback(errRes);
-          return socket.emit('error', errRes);
-        }
-
-        if (game.status === 'finished' || game.status === 'ended') {
-          const errRes = {
-            success: false,
-            code: 'GAME_ENDED',
-            message: 'Phòng chơi đã kết thúc',
-          };
-          if (callback) callback(errRes);
-          return socket.emit('error', errRes);
-        }
-
-        const nickTaken = Object.values(game.players).some(
-          (p: any) => p.nickname.toLowerCase() === nickClean.toLowerCase(),
-        );
-        if (nickTaken) {
-          const errRes = {
-            success: false,
-            code: 'NICKNAME_TAKEN',
-            message: 'Nickname này đã có người sử dụng',
-          };
-          if (callback) callback(errRes);
-          return socket.emit('error', errRes);
-        }
-
-        game.players[socket.id] = {
-          socketId: socket.id,
-          userId: socket.user?.id || socket.user?.sub || null,
-          nickname: nickClean,
-          avatarIndex,
-          totalScore: 0,
-          streak: 0,
-          answers: [],
-          powerUps: { ...DEFAULT_POWERUPS },
-          activePowerUp: null,
-          teamName: teamName?.trim() || null,
-        };
-
-        socket.join(normalizedPin);
-        socket.join(`game:${normalizedPin}`);
-        socket.pin = normalizedPin;
-        socket.role = 'player';
-
-        const successRes = {
-          success: true,
-          nickname: nickClean,
-          pin: normalizedPin,
-        };
-        if (callback) callback(successRes);
-        socket.emit('player:joined', successRes);
-
-        if (game.hostSocketId) {
-          io.to(game.hostSocketId).emit('host:player_joined', {
-            nickname: nickClean,
-            playerCount: Object.keys(game.players).length,
-          });
-          io.to(game.hostSocketId).emit('host:lobby_update', {
-            players: Object.values(game.players).map((p: any) => ({
-              nickname: p.nickname,
-              avatarIndex: p.avatarIndex,
-            })),
+            code: 'HOST_ATTACH_FAILED',
+            message: 'Không thể kết nối Host',
           });
         }
       },
     );
 
-    // ── HOST: start game ──────────────────────────────────────────────────────
+    /* ── PLAYER: attach to game ────────────────────────────────────────── */
+    socket.on(
+      'player:attach-game',
+      async (
+        payload: { gameId: string; playerId: string; pin: string },
+        callback?: (res: any) => void,
+      ) => {
+        const cb = typeof callback === 'function' ? callback : () => {};
+        try {
+          const SessionModel = getSessionModel();
+          const game = await SessionModel.findById(payload.gameId);
+
+          if (!game) {
+            cb({
+              success: false,
+              code: 'GAME_NOT_FOUND',
+              message: 'Không tìm thấy phòng',
+            });
+            return;
+          }
+
+          if (game.pin !== normalizePin(payload.pin)) {
+            cb({
+              success: false,
+              code: 'INVALID_PIN',
+              message: 'Mã PIN không hợp lệ',
+            });
+            return;
+          }
+
+          if (game.status === 'ended' || game.status === 'finished') {
+            cb({
+              success: false,
+              code: 'GAME_ENDED',
+              message: 'Phòng chơi đã kết thúc',
+            });
+            return;
+          }
+
+          const player = game.players.find(
+            (item: any) => item.playerId === payload.playerId,
+          );
+
+          if (!player) {
+            cb({
+              success: false,
+              code: 'PLAYER_NOT_FOUND',
+              message: 'Không tìm thấy người chơi',
+            });
+            return;
+          }
+
+          // Update socket info
+          player.socketId = socket.id;
+          player.connected = true;
+          await game.save();
+
+          const gameId = game._id.toString();
+          const room = getGameRoom(gameId);
+
+          await socket.join(room);
+          socket.data.role = 'player';
+          socket.data.gameId = gameId;
+          socket.data.playerId = player.playerId;
+          socket.data.pin = game.pin;
+
+          // Build updated player list and broadcast to room
+          const players = game.players.map((item: any) => ({
+            playerId: item.playerId,
+            nickname: item.nickname,
+            teamName: item.teamName,
+            avatar: item.avatar,
+            avatarIndex: item.avatarIndex,
+            connected: item.connected,
+          }));
+
+          io.to(room).emit('player-list:updated', players);
+
+          console.log(
+            '[SOCKET] Player attached:',
+            player.playerId,
+            'to game:',
+            gameId,
+          );
+          cb({ success: true, gameId, playerId: player.playerId });
+        } catch (error: any) {
+          console.error('[PLAYER ATTACH ERROR]', error.message);
+          cb({
+            success: false,
+            code: 'PLAYER_ATTACH_FAILED',
+            message: 'Không thể kết nối người chơi với phòng',
+          });
+        }
+      },
+    );
+
+    /* ── HOST: start game ──────────────────────────────────────────────── */
     socket.on('host:start', async () => {
-      const pin = socket.pin;
-      const game = activeGames.get(pin);
-      if (!game || game.hostSocketId !== socket.id) return;
+      const gameId = socket.data.gameId;
+      if (!gameId || socket.data.role !== 'host') return;
 
-      game.status = 'active';
-      const SessionModel = getSessionModel();
+      try {
+        const SessionModel = getSessionModel();
+        const QuestionModel = getQuestionModel();
 
-      const numericPin = Number(pin);
-      const pinFilter = !isNaN(numericPin)
-        ? { $or: [{ pin }, { pin: numericPin }] }
-        : { pin };
+        const session = await SessionModel.findById(gameId);
+        if (!session) return;
 
-      await SessionModel.findOneAndUpdate(pinFilter, {
-        status: 'active',
-        startedAt: new Date(),
-      });
+        session.status = 'active';
+        session.startedAt = new Date();
+        await session.save();
 
-      io.to(pin).to(`game:${pin}`).emit('game:started');
-      sendNextQuestion(pin);
+        // Load questions
+        const questions = await QuestionModel.find({ quizId: session.quizId })
+          .sort({ order: 1 })
+          .lean();
+
+        // Build in-memory game state for scoring
+        const playerMap: Record<string, any> = {};
+        for (const p of session.players) {
+          if (p.socketId) {
+            playerMap[p.socketId] = {
+              socketId: p.socketId,
+              playerId: p.playerId,
+              userId: null,
+              nickname: p.nickname,
+              avatarIndex: p.avatarIndex ?? 0,
+              totalScore: 0,
+              streak: 0,
+              answers: [],
+              powerUps: { ...DEFAULT_POWERUPS },
+              activePowerUp: null,
+              teamName: p.teamName || null,
+            };
+          }
+        }
+
+        const game = {
+          sessionId: gameId,
+          pin: session.pin,
+          hostId: session.hostId,
+          hostSocketId: socket.id,
+          questions,
+          currentIdx: -1,
+          players: playerMap,
+          answers: {} as Record<number, Record<string, any>>,
+          status: 'active' as string,
+          questionTimer: null as any,
+          questionStartTs: 0,
+          questionDurationMs: 0,
+        };
+
+        activeGames.set(gameId, game);
+
+        const room = getGameRoom(gameId);
+        io.to(room).emit('game:started');
+        sendNextQuestion(gameId);
+      } catch (err: any) {
+        console.error('[HOST START ERROR]', err.message);
+      }
     });
 
-    // ── HOST: next question manually ──────────────────────────────────────────
+    /* ── HOST: next question manually ──────────────────────────────────── */
     socket.on('host:next', () => {
-      const pin = socket.pin;
-      const game = activeGames.get(pin);
+      const gameId = socket.data.gameId;
+      const game = activeGames.get(gameId);
       if (!game || game.hostSocketId !== socket.id) return;
       clearTimeout(game.questionTimer);
-      endQuestion(pin);
+      endQuestion(gameId);
     });
 
-    // ── PLAYER: submit answer ─────────────────────────────────────────────────
+    /* ── PLAYER: submit answer ─────────────────────────────────────────── */
     socket.on(
       'player:answer',
       ({
@@ -401,8 +386,8 @@ export const initSocket = (server: any) => {
         optionIndex: number;
         timeSpent: number;
       }) => {
-        const pin = socket.pin;
-        const game = activeGames.get(pin);
+        const gameId = socket.data.gameId;
+        const game = activeGames.get(gameId);
         if (!game || game.status !== 'active') return;
 
         const player = game.players[socket.id];
@@ -425,7 +410,7 @@ export const initSocket = (server: any) => {
           player.streak,
           useDouble,
         );
-        player.activePowerUp = null; // consume
+        player.activePowerUp = null;
 
         if (correct) {
           player.streak++;
@@ -460,15 +445,15 @@ export const initSocket = (server: any) => {
         // Auto-advance if everyone answered
         if (answered >= total) {
           clearTimeout(game.questionTimer);
-          endQuestion(pin);
+          endQuestion(gameId);
         }
       },
     );
 
-    // ── PLAYER: use power-up ──────────────────────────────────────────────────
+    /* ── PLAYER: use power-up ──────────────────────────────────────────── */
     socket.on('player:powerup', ({ type }: { type: string }) => {
-      const pin = socket.pin;
-      const game = activeGames.get(pin);
+      const gameId = socket.data.gameId;
+      const game = activeGames.get(gameId);
       if (!game || game.status !== 'active') return;
       const player = game.players[socket.id];
       if (!player || !player.powerUps[type] || player.powerUps[type] <= 0)
@@ -504,10 +489,11 @@ export const initSocket = (server: any) => {
 
         clearTimeout(game.questionTimer);
         game.questionTimer = setTimeout(() => {
-          endQuestion(pin);
+          endQuestion(gameId);
         }, newRemainingMs + 2000);
 
-        io.to(pin).to(`game:${pin}`).emit('game:extra_time', {
+        const room = getGameRoom(gameId);
+        io.to(room).emit('game:extra_time', {
           nickname: player.nickname,
           seconds: 15,
         });
@@ -518,29 +504,62 @@ export const initSocket = (server: any) => {
       }
     });
 
-    // ── Disconnect ────────────────────────────────────────────────────────────
-    socket.on('disconnect', () => {
-      const pin = socket.pin;
-      const game = activeGames.get(pin);
-      if (!game) return;
+    /* ── Disconnect ────────────────────────────────────────────────────── */
+    socket.on('disconnect', async () => {
+      const { gameId, playerId, role } = socket.data;
+      console.log('[SOCKET] Disconnected:', socket.id, 'role:', role);
 
-      if (socket.role === 'player') {
-        const player = game.players[socket.id];
-        if (player) {
-          delete game.players[socket.id];
-          if (game.hostSocketId) {
-            io.to(game.hostSocketId).emit('host:player_left', {
-              nickname: player.nickname,
-              playerCount: Object.keys(game.players).length,
-            });
+      if (!gameId) return;
+
+      if (role === 'player' && playerId) {
+        // Mark player as disconnected in MongoDB (don't delete)
+        try {
+          const SessionModel = getSessionModel();
+          await SessionModel.updateOne(
+            { _id: gameId, 'players.playerId': playerId },
+            {
+              $set: {
+                'players.$.connected': false,
+                'players.$.socketId': null,
+              },
+            },
+          );
+
+          // Also update in-memory if game is active
+          const game = activeGames.get(gameId);
+          if (game && game.players[socket.id]) {
+            const p = game.players[socket.id];
+            delete game.players[socket.id];
+            // Keep player data accessible by playerId for reconnection
           }
+
+          // Emit updated player list
+          const room = getGameRoom(gameId);
+          const session = await SessionModel.findById(gameId).lean();
+          if (session) {
+            const players = (session as any).players.map((item: any) => ({
+              playerId: item.playerId,
+              nickname: item.nickname,
+              teamName: item.teamName,
+              avatar: item.avatar,
+              avatarIndex: item.avatarIndex,
+              connected: item.connected,
+            }));
+            io.to(room).emit('player-list:updated', players);
+          }
+        } catch (err: any) {
+          console.error('[DISCONNECT] Error updating player:', err.message);
         }
       }
 
-      if (socket.role === 'host') {
-        io.to(pin).to(`game:${pin}`).emit('game:host_left');
-        clearTimeout(game.questionTimer);
-        activeGames.delete(pin);
+      if (role === 'host') {
+        const game = activeGames.get(gameId);
+        if (game) {
+          const room = getGameRoom(gameId);
+          io.to(room).emit('game:host_left');
+          clearTimeout(game.questionTimer);
+          activeGames.delete(gameId);
+        }
       }
     });
   });
@@ -548,18 +567,22 @@ export const initSocket = (server: any) => {
   return io;
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function sendNextQuestion(pin: string) {
-  const game = activeGames.get(pin);
+/* ══════════════════════════════════════════════════════════════════════════ */
+/*  GAME PLAY HELPERS                                                       */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+function sendNextQuestion(gameId: string) {
+  const game = activeGames.get(gameId);
   if (!game) return;
 
   game.currentIdx++;
   if (game.currentIdx >= game.questions.length) {
-    return endGame(pin);
+    return endGame(gameId);
   }
 
   const q = game.questions[game.currentIdx];
   const total = game.questions.length;
+  const room = getGameRoom(gameId);
 
   // Send to host (includes correct answers)
   if (game.hostSocketId) {
@@ -588,23 +611,34 @@ function sendNextQuestion(pin: string) {
     })),
   };
 
-  io.to(pin).to(`game:${pin}`).emit('game:question', playerQuestion);
+  io.to(room).emit('game:question', playerQuestion);
 
   game.questionStartTs = Date.now();
   game.questionDurationMs = q.timeLimit * 1000;
 
   // Auto-advance after timeLimit + 2s buffer
   game.questionTimer = setTimeout(() => {
-    endQuestion(pin);
+    endQuestion(gameId);
   }, game.questionDurationMs + 2000);
+
+  // Update DB
+  void (async () => {
+    try {
+      const SessionModel = getSessionModel();
+      await SessionModel.findByIdAndUpdate(gameId, {
+        currentQuestionIndex: game.currentIdx,
+      });
+    } catch (_) {}
+  })();
 }
 
-function endQuestion(pin: string) {
-  const game = activeGames.get(pin);
+function endQuestion(gameId: string) {
+  const game = activeGames.get(gameId);
   if (!game) return;
 
   const idx = game.currentIdx;
   const q = game.questions[idx];
+  const room = getGameRoom(gameId);
 
   // Build leaderboard
   const leaderboard = Object.values(game.players)
@@ -621,22 +655,22 @@ function endQuestion(pin: string) {
     .map((o: any, i: number) => (o.isCorrect ? i : null))
     .filter((i: any) => i !== null);
 
-  io.to(pin)
-    .to(`game:${pin}`)
-    .emit('game:question_end', {
-      correctOptions,
-      explanation: q.explanation,
-      leaderboard,
-      answerCount: Object.keys(game.answers[idx] || {}).length,
-    });
+  io.to(room).emit('game:question_end', {
+    correctOptions,
+    explanation: q.explanation,
+    leaderboard,
+    answerCount: Object.keys(game.answers[idx] || {}).length,
+  });
 
   // Next question after 5s
-  setTimeout(() => sendNextQuestion(pin), 5000);
+  setTimeout(() => sendNextQuestion(gameId), 5000);
 }
 
-async function endGame(pin: string) {
-  const game = activeGames.get(pin);
+async function endGame(gameId: string) {
+  const game = activeGames.get(gameId);
   if (!game) return;
+
+  const room = getGameRoom(gameId);
 
   const finalLeaderboard = Object.values(game.players)
     .sort((a: any, b: any) => b.totalScore - a.totalScore)
@@ -659,7 +693,7 @@ async function endGame(pin: string) {
     .sort((a: any, b: any) => b.totalScore - a.totalScore)
     .map((t: any, i: number) => ({ ...t, rank: i + 1 }));
 
-  io.to(pin).to(`game:${pin}`).emit('game:ended', {
+  io.to(room).emit('game:ended', {
     leaderboard: finalLeaderboard,
     teamLeaderboard,
   });
@@ -670,19 +704,18 @@ async function endGame(pin: string) {
     const AchievementModel =
       mongoose.models.Achievement || mongoose.model('Achievement');
 
-    const numericPin = Number(pin);
-    const pinFilter = !isNaN(numericPin)
-      ? { $or: [{ pin }, { pin: numericPin }] }
-      : { pin };
-
-    await SessionModel.findOneAndUpdate(pinFilter, {
+    await SessionModel.findByIdAndUpdate(gameId, {
       status: 'finished',
       endedAt: new Date(),
       currentQuestionIndex: game.currentIdx,
       players: finalLeaderboard.map((p: any) => ({
-        userId: p.userId,
+        playerId: p.playerId,
+        socketId: p.socketId,
         nickname: p.nickname,
         avatarIndex: p.avatarIndex,
+        avatar: p.avatar || '😀',
+        teamName: p.teamName || '',
+        connected: false,
         totalScore: p.totalScore,
         rank: p.rank,
         streak: p.streak,
@@ -697,7 +730,6 @@ async function endGame(pin: string) {
         await awardAchievement(AchievementModel, p.userId, 'centurion');
       if (p.streak >= 5)
         await awardAchievement(AchievementModel, p.userId, 'streak_5');
-      // speed demon: answered in under 3s on any question
       const fast = p.answers.some(
         (a: any) => a.timeSpent < 3000 && a.isCorrect,
       );
@@ -714,5 +746,5 @@ async function endGame(pin: string) {
     console.error('[Socket] Failed to persist game session:', err.message);
   }
 
-  activeGames.delete(pin);
+  activeGames.delete(gameId);
 }

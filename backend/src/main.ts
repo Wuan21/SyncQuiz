@@ -13,7 +13,8 @@ async function bootstrap() {
   // CORS — reads CORS_ORIGINS from .env (comma-separated list supported)
   const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
     .split(',')
-    .map((s) => s.trim());
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -25,9 +26,11 @@ async function bootstrap() {
       if (isAllowed || process.env.NODE_ENV !== 'production') {
         return callback(null, true);
       }
-      return callback(null, true); // Allow CORS for all origins in live game
+      return callback(null, true); // Allow for live game (mobile browsers)
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   // Global prefix
@@ -37,7 +40,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false,
       transform: true,
       transformOptions: { enableImplicitConversion: true },
     }),
@@ -63,4 +66,4 @@ async function bootstrap() {
   console.log(`🚀 SyncQuiz API running on http://localhost:${port}/api`);
   console.log(`📖 Swagger docs at http://localhost:${port}/docs`);
 }
-bootstrap();
+void bootstrap();

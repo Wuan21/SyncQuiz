@@ -1,6 +1,7 @@
 import api from './axios'
 
 export const createSession = (data) => api.post('/sessions', data).then((r) => r.data)
+export const joinSession = (data) => api.post('/sessions/join', data).then((r) => r.data)
 export const getSessionByPin = (pin) => api.get(`/sessions/pin/${pin}`).then((r) => r.data)
 export const getMyHistory = () => api.get('/sessions/history').then((r) => r.data)
 export const getSessionResult = (id) => api.get(`/sessions/${id}/result`).then((r) => r.data)
