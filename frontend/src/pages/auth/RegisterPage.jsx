@@ -18,6 +18,7 @@ export default function RegisterPage() {
 
   const [step, setStep] = useState('signup') // 'signup' | 'confirm'
   const [signUpEmail, setSignUpEmail] = useState('')
+  const [signUpUsername, setSignUpUsername] = useState('')
   const [code, setCode] = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
 
@@ -25,8 +26,11 @@ export default function RegisterPage() {
     try {
       if (isCognitoEnabled) {
         setSignUpEmail(data.email)
+        // Username cannot be email format when user pool has email alias enabled
+        const safeUsername = data.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') + '_' + Date.now()
+        setSignUpUsername(safeUsername)
         const signUpResult = await signUp({
-          username: data.email,
+          username: safeUsername,
           password: data.password,
           options: {
             userAttributes: {
@@ -59,7 +63,7 @@ export default function RegisterPage() {
     if (!code) return toast.error('Please enter the verification code')
     setIsConfirming(true)
     try {
-      await confirmSignUp({ username: signUpEmail, confirmationCode: code })
+      await confirmSignUp({ username: signUpUsername, confirmationCode: code })
       toast.success(t('auth.verificationSuccess', 'Verification successful! You can now log in.'))
       navigate('/login')
     } catch (err) {
