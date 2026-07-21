@@ -3,12 +3,6 @@ import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
-import { includeIgnoreFile } from '@typescript-eslint/eslint-utils';
-
-const gitignorePath = includeIgnoreFile(
-  // eslint-disable-next-line no-undef
-  new URL('./', import.meta.url).pathname,
-);
 
 export default tseslint.config(
   {
@@ -25,10 +19,7 @@ export default tseslint.config(
       },
       sourceType: 'commonjs',
       parserOptions: {
-        projectService: {
-          allowDefaultProject: ['*.ts'],
-          defaultProject: './tsconfig.json',
-        },
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },
