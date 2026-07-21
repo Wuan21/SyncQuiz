@@ -83,10 +83,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       }
     }
 
-    try {
-      return (await super.canActivate(context)) as boolean;
-    } catch (err) {
-      throw err; // Re-throw so NestJS returns proper 401
-    }
+    return (await super.canActivate(context)) as boolean;
   }
 }
