@@ -48,7 +48,7 @@ services:
         sync: false
       - key: AWS_COGNITO_TOKEN_USE
         value: id
-    healthCheckPath: /api/health
+    healthCheckPath: /api/categories
     autoDeploy: true
 
   # ─── Frontend (React + Vite) ──────────────────────────────────────────────────
