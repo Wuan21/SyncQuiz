@@ -4,158 +4,184 @@ import {
   Zap, BookOpen, Users, Plus, Play, ArrowRight
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { motion } from 'framer-motion'
 import { getAnalytics } from '../../api/upload.api'
 import { getMyQuizzes } from '../../api/quizzes.api'
 import useAuthStore from '../../store/useAuthStore'
-import { SkeletonStat, SkeletonQuizCard } from '../../components/ui/Skeleton'
-import { EmptyState } from '../../components/ui/EmptyState'
+import { Skeleton } from '../../components/ui/Skeleton'
 
-function StatCard({ icon: Icon, label, value, colorClass, delay = 0 }) {
+/* ─── Stat Card ─── */
+function StatCard({ icon: Icon, label, value, bgColor, textColor, delay = 0 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay }}
+    <div
       className="sq-stat"
+      style={{ animationDelay: `${delay}ms`, animation: 'sq-fade-up 0.4s ease-out both' }}
     >
-      <div className={`sq-stat-icon ${colorClass}`}>
+      <div
+        className="sq-stat-icon"
+        style={{ backgroundColor: bgColor, color: textColor }}
+      >
         <Icon size={20} />
       </div>
       <div>
-        <p className="sq-stat-value text-foreground">{value ?? '—'}</p>
+        <p className="sq-stat-value">{value ?? '—'}</p>
         <p className="sq-stat-label">{label}</p>
       </div>
-    </motion.div>
+    </div>
   )
 }
 
-function QuickAction({ to, icon: Icon, title, description, colorClass, delay = 0 }) {
+/* ─── Quick Action Card ─── */
+function QuickAction({ to, icon: Icon, title, description, bgColor, textColor, delay = 0 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay }}
+    <Link
+      to={to}
+      className="sq-card flex items-center gap-4 group"
+      style={{ animationDelay: `${delay}ms`, animation: 'sq-fade-up 0.4s ease-out both' }}
     >
-      <Link
-        to={to}
-        className="sq-card flex items-center gap-4 group hover:border-primary/30 hover:shadow-md transition-all block"
+      <div
+        className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105"
+        style={{ backgroundColor: bgColor, color: textColor }}
       >
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${colorClass}`}>
-          <Icon size={22} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-foreground">{title}</p>
-          <p className="text-muted-foreground text-sm mt-0.5">{description}</p>
-        </div>
-        <ArrowRight size={18} className="text-muted-foreground group-hover:text-foreground group-hover:translate-x-1 transition-all shrink-0" />
-      </Link>
-    </motion.div>
+        <Icon size={22} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold">{title}</p>
+        <p className="text-sm mt-0.5">{description}</p>
+      </div>
+      <ArrowRight size={18} className="shrink-0 transition-transform group-hover:translate-x-1" />
+    </Link>
   )
 }
 
+/* ─── Quiz Card ─── */
 function QuizCard({ quiz, index }) {
   const { t } = useTranslation()
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index * 0.05 }}
+    <div
       className="sq-card group"
+      style={{ animationDelay: `${100 + index * 50}ms`, animation: 'sq-fade-up 0.35s ease-out both' }}
     >
       <div className="sq-quiz-cover">
         {quiz.coverImageUrl
           ? <img src={quiz.coverImageUrl} alt={quiz.title} />
-          : <BookOpen size={28} className="text-muted-foreground/30" />
+          : <BookOpen size={28} className="opacity-30" />
         }
       </div>
-      <h3 className="font-semibold text-foreground text-sm truncate mb-1">{quiz.title}</h3>
-      <p className="text-muted-foreground text-xs mt-1 mb-3">
-        {quiz.questionCount} {t('dashboard.questionsCount', { count: quiz.questionCount })}
+      <h3 className="font-semibold text-sm truncate mb-1">{quiz.title}</h3>
+      <p className="text-sm mt-1 mb-3">
+        {quiz.questionCount || 0} {t('dashboard.questionsCount', { count: quiz.questionCount || 0 })}
       </p>
       <div className="flex gap-2">
-        <Link to={`/quizzes/${quiz.id}/edit`} className="sq-btn sq-btn-secondary sq-btn-sm flex-1 text-center">
+        <Link
+          to={`/quizzes/${quiz.id}/edit`}
+          className="sq-btn sq-btn-secondary sq-btn-sm flex-1 text-center"
+        >
           {t('common.edit')}
         </Link>
-        <Link to={`/host/${quiz.id}`} className="sq-btn sq-btn-primary sq-btn-sm flex-1 text-center">
-          <Play size={12} /> {t('dashboard.host')}
+        <Link
+          to={`/host/${quiz.id}`}
+          className="sq-btn sq-btn-primary sq-btn-sm flex-1 text-center"
+        >
+          <Play size={11} /> {t('dashboard.host')}
         </Link>
       </div>
-    </motion.div>
+    </div>
+  )
+}
+
+/* ─── Loading Skeleton ─── */
+function LoadingCard() {
+  return (
+    <div className="sq-card">
+      <div className="sq-quiz-cover sq-skeleton" />
+      <Skeleton className="h-4 w-3/4 mb-2" />
+      <Skeleton className="h-3 w-1/2 mb-4" />
+      <div className="flex gap-2">
+        <Skeleton className="h-8 flex-1 rounded-lg" />
+        <Skeleton className="h-8 flex-1 rounded-lg" />
+      </div>
+    </div>
+  )
+}
+
+function StatSkeleton() {
+  return (
+    <div className="sq-stat">
+      <Skeleton className="w-11 h-11 rounded-xl shrink-0" />
+      <div className="flex-1">
+        <Skeleton className="h-7 w-12 mb-1" />
+        <Skeleton className="h-3 w-20" />
+      </div>
+    </div>
   )
 }
 
 export default function DashboardPage() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
-  const { data: analytics, isLoading: analyticsLoading } = useQuery({
+
+  const { data: analytics, isLoading: analyticsLoading, isError: analyticsError } = useQuery({
     queryKey: ['analytics'],
     queryFn: getAnalytics,
+    retry: 1,
     staleTime: 60_000,
   })
-  const { data: myQuizzes, isLoading: quizzesLoading } = useQuery({
+
+  const { data: myQuizzes, isLoading: quizzesLoading, isError: quizzesError } = useQuery({
     queryKey: ['quizzes', 'my'],
     queryFn: () => getMyQuizzes({ limit: 6 }),
+    retry: 1,
     staleTime: 60_000,
   })
 
   const firstName = user?.fullName?.split(' ').slice(-1)[0] || user?.fullName?.split(' ')[0] || ''
 
+  // Determine if we should show real stat data or a placeholder
+  const quizCount = analytics?.quizCount ?? analytics?.data?.quizCount
+  const totalSessions = analytics?.totalSessions ?? analytics?.data?.totalSessions
+  const avgPlayers = analytics?.avgPlayers ?? analytics?.data?.avgPlayers
+
+  const quizzes = myQuizzes?.quizzes ?? myQuizzes?.data?.quizzes ?? myQuizzes ?? []
+
   return (
     <div className="sq-page">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="mb-8"
-      >
+
+      {/* ─── Header ─── */}
+      <div className="mb-8" style={{ animation: 'sq-fade-in 0.4s ease-out' }}>
         <h1 className="sq-page-title">
           {t('dashboard.welcome')}{' '}
           <span className="sq-text-gradient">{firstName}</span> 👋
         </h1>
         <p className="sq-page-subtitle">{t('dashboard.subTitle')}</p>
-      </motion.div>
+      </div>
 
-      {/* Stats */}
+      {/* ─── Stats ─── */}
       <section className="sq-section">
         <h2 className="sq-section-title mb-4">Thống kê nhanh</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {analyticsLoading ? (
+          {analyticsLoading && !analytics ? (
             <>
-              <SkeletonStat />
-              <SkeletonStat />
-              <SkeletonStat />
+              <StatSkeleton />
+              <StatSkeleton />
+              <StatSkeleton />
+            </>
+          ) : analyticsError ? (
+            <>
+              <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value="—" bgColor="hsl(270 90% 58% / 0.12)" textColor="hsl(270 92% 64%)" />
+              <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value="—" bgColor="hsl(330 85% 58% / 0.12)" textColor="hsl(330 90% 65%)" />
+              <StatCard icon={Users} label={t('dashboard.avgPlayers')} value="—" bgColor="hsl(145 65% 42% / 0.12)" textColor="hsl(145 55% 48%)" />
             </>
           ) : (
             <>
-              <StatCard
-                icon={BookOpen}
-                label={t('dashboard.totalQuizzes')}
-                value={analytics?.quizCount}
-                colorClass="bg-primary/12 text-primary"
-                delay={0}
-              />
-              <StatCard
-                icon={Zap}
-                label={t('dashboard.gamesHosted')}
-                value={analytics?.totalSessions}
-                colorClass="bg-accent/12 text-accent"
-                delay={0.06}
-              />
-              <StatCard
-                icon={Users}
-                label={t('dashboard.avgPlayers')}
-                value={analytics?.avgPlayers}
-                colorClass="bg-success/12 text-success"
-                delay={0.12}
-              />
+              <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value={quizCount ?? '—'} bgColor="hsl(270 90% 58% / 0.12)" textColor="hsl(270 92% 64%)" delay={0} />
+              <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value={totalSessions ?? '—'} bgColor="hsl(330 85% 58% / 0.12)" textColor="hsl(330 90% 65%)" delay={60} />
+              <StatCard icon={Users} label={t('dashboard.avgPlayers')} value={avgPlayers ?? '—'} bgColor="hsl(145 65% 42% / 0.12)" textColor="hsl(145 55% 48%)" delay={120} />
             </>
           )}
         </div>
       </section>
 
-      {/* Quick actions */}
+      {/* ─── Quick Actions ─── */}
       <section className="sq-section">
         <h2 className="sq-section-title mb-4">Hành động nhanh</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -164,52 +190,53 @@ export default function DashboardPage() {
             icon={Plus}
             title={t('dashboard.createQuizBtn')}
             description={t('dashboard.createQuizDesc')}
-            colorClass="bg-primary/12 text-primary"
-            delay={0.15}
+            bgColor="hsl(270 90% 58% / 0.12)"
+            textColor="hsl(270 92% 64%)"
+            delay={150}
           />
           <QuickAction
             to="/join"
             icon={Play}
             title={t('nav.joinGame')}
             description={t('dashboard.joinGameDesc')}
-            colorClass="bg-accent/12 text-accent"
-            delay={0.2}
+            bgColor="hsl(330 85% 58% / 0.12)"
+            textColor="hsl(330 90% 65%)"
+            delay={200}
           />
         </div>
       </section>
 
-      {/* My Quizzes */}
+      {/* ─── My Quizzes ─── */}
       <section className="sq-section">
         <div className="sq-section-header">
           <h2 className="sq-section-title">{t('dashboard.myQuizzes')}</h2>
-          <Link to="/quizzes" className="text-primary text-sm font-medium hover:text-primary/80 transition-colors flex items-center gap-1">
+          <Link to="/quizzes" className="text-sm font-medium" style={{ color: 'hsl(270 92% 64%)' }}>
             {t('dashboard.viewAll')} <ArrowRight size={14} />
           </Link>
         </div>
 
-        {quizzesLoading ? (
+        {quizzesLoading && !quizzes.length ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => <SkeletonQuizCard key={i} />)}
+            {[1, 2, 3].map((i) => <LoadingCard key={i} />)}
           </div>
-        ) : !myQuizzes?.quizzes?.length ? (
-          <div className="sq-card">
-            <EmptyState
-              icon={BookOpen}
-              title={t('dashboard.noQuizzesYet')}
-              description="Tạo quiz đầu tiên của bạn để bắt đầu"
-              actionText={t('dashboard.createFirstQuiz')}
-              action={() => { window.location.href = '/quizzes/new' }}
-              actionVariant="primary"
-            />
+        ) : quizzesError || (!quizzes.length && !quizzesLoading) ? (
+          <div className="sq-card text-center py-10">
+            <BookOpen size={40} className="mx-auto mb-3 opacity-30" />
+            <p className="font-medium mb-1">{t('dashboard.noQuizzesYet')}</p>
+            <p className="text-sm mb-5">{t('dashboard.createFirstQuiz')}</p>
+            <Link to="/quizzes/new" className="sq-btn sq-btn-primary">
+              <Plus size={16} /> {t('dashboard.createQuizBtn')}
+            </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {myQuizzes.quizzes.map((q, i) => (
+            {quizzes.slice(0, 6).map((q, i) => (
               <QuizCard key={q.id} quiz={q} index={i} />
             ))}
           </div>
         )}
       </section>
+
     </div>
   )
 }
