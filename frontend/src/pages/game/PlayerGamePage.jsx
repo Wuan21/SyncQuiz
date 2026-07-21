@@ -21,6 +21,7 @@ export default function PlayerGamePage() {
   const sessionRaw = sessionStorage.getItem('syncquiz-player-session')
   const playerSession = sessionRaw ? JSON.parse(sessionRaw) : null
   const nickname = playerSession?.nickname || searchParams.get('nickname') || 'Player'
+  const myPlayerId = playerSession?.playerId
   const avatar = playerSession?.avatar || AVATARS[0]
 
   const [phase, setPhase] = useState(isLobbyRoute ? 'lobby' : 'lobby')
@@ -180,7 +181,7 @@ export default function PlayerGamePage() {
 
   // ── Ended ────────────────────────────────────────────────────────────────
   if (phase === 'ended') {
-    const me = leaderboard.find((p) => p.nickname === nickname)
+    const me = leaderboard.find((p) => p.playerId === myPlayerId || p.nickname === nickname)
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-4 text-center">
         <Trophy size={64} className="text-yellow-400 mb-4" />
@@ -194,7 +195,7 @@ export default function PlayerGamePage() {
         <div className="w-full max-w-xs space-y-2 mb-8">
           {leaderboard.slice(0, 5).map((p) => (
             <div key={p.nickname}
-              className={`flex items-center justify-between rounded-xl px-4 py-2 ${p.nickname === nickname ? 'bg-violet-600/30 border border-violet-500/40' : 'bg-white/5'}`}>
+              className={`flex items-center justify-between rounded-xl px-4 py-2 ${(p.playerId === myPlayerId || p.nickname === nickname) ? 'bg-violet-600/30 border border-violet-500/40' : 'bg-white/5'}`}>
               <span>{p.rank}. {p.nickname}</span>
               <span className="font-bold text-yellow-400">{p.totalScore.toLocaleString()}</span>
             </div>

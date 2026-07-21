@@ -378,7 +378,9 @@ export class LiveService {
         message: 'Không tìm thấy phiên chơi',
       });
     }
-    const session: any = await this.sessionModel.findById(sessionId).lean();
+    const session: any = await this.sessionModel.findById(sessionId)
+      .populate('quizId', 'title')
+      .lean();
     if (!session) {
       throw new NotFoundException({
         success: false,
@@ -394,13 +396,15 @@ export class LiveService {
         message: 'Bạn không có quyền xem kết quả',
       });
     }
+    const quizTitle = (session.quizId as any)?.title || 'Kết quả game';
     return {
       success: true,
       data: {
         id: session._id.toString(),
         pin: session.pin,
         status: session.status,
-        quizId: session.quizId?.toString?.() || session.quizId,
+        quizId: session.quizId?._id?.toString?.() || session.quizId,
+        quizTitle,
         hostId: session.hostId,
         players: (session.players || []).map((p: any) => ({
           playerId: p.playerId,

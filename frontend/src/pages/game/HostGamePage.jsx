@@ -128,7 +128,15 @@ export default function HostGamePage() {
             </div>
           ))}
         </div>
-        <button onClick={() => navigate('/dashboard')} className="btn-primary px-8">
+        <button onClick={() => {
+          const hostRaw = sessionStorage.getItem('syncquiz-host-session')
+          const session = hostRaw ? JSON.parse(hostRaw) : null
+          if (session?.gameId) {
+            navigate(`/results/${session.gameId}`)
+          } else {
+            navigate('/dashboard')
+          }
+        }} className="btn-primary px-8">
           Back to Dashboard
         </button>
       </div>

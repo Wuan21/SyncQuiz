@@ -100,10 +100,12 @@ export function disconnectSocket() {
 }
 
 /* ── Re-attach on reconnect ─────────────────────────────────────────────── */
+let _reconnecting = false
 socket.io.on('reconnect', () => {
+  if (_reconnecting) return
+  _reconnecting = true
   console.log('[SOCKET] Reconnected, re-attaching session...')
 
-  // Try to re-attach player session
   const raw = sessionStorage.getItem('syncquiz-player-session')
   if (raw) {
     try {
@@ -114,20 +116,9 @@ socket.io.on('reconnect', () => {
         pin: session.pin,
       })
     } catch (_) {}
-    return
   }
 
-  // Try to re-attach host session
-  const hostRaw = sessionStorage.getItem('syncquiz-host-session')
-  if (hostRaw) {
-    try {
-      const session = JSON.parse(hostRaw)
-      socket.emit('host:attach-game', {
-        gameId: session.gameId,
-        pin: session.pin,
-      })
-    } catch (_) {}
-  }
+  setTimeout(() => { _reconnecting = false }, 3000)
 })
 
 // Default export for backward compatibility

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { Trophy, Users, Clock, ArrowLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { getSessionResult } from '../../api/game.api'
@@ -113,7 +113,7 @@ export default function ResultsPage() {
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-yellow-400/20 to-orange-400/20 flex items-center justify-center mx-auto mb-4">
           <Trophy size={32} className="text-yellow-400" />
         </div>
-        <h1 className="sq-title-sm mb-2">{session.quizId?.title || 'Kết quả game'}</h1>
+        <h1 className="sq-title-sm mb-2">{session.quizTitle || session.quizId?.title || 'Kết quả game'}</h1>
         <div className="flex items-center justify-center gap-6 text-white/40 text-sm">
           <span className="flex items-center gap-1.5">
             <Users size={14} />

@@ -131,9 +131,17 @@ export default function HostLobbyPage() {
       setPhase('lobby')
     } catch (err) {
       console.error('[HOST LOBBY] Init error:', err)
+      const status = err?.response?.status
       const msg = err?.response?.data?.message || err?.message || ''
       setPhase('error')
-      setErrorMsg(msg.includes('401') ? 'Vui lòng đăng nhập lại' : (msg || 'Đã xảy ra lỗi khi tạo phòng'))
+      if (status === 401 || status === 403 || msg.toLowerCase().includes('unauthorized')) {
+        setErrorMsg('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.')
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('auth')
+        setTimeout(() => navigate('/login'), 2000)
+      } else {
+        setErrorMsg(msg || 'Đã xảy ra lỗi khi tạo phòng')
+      }
       toast.error(msg || 'Đã xảy ra lỗi khi tạo phòng')
     }
   }
