@@ -1,5 +1,9 @@
 import { io } from 'socket.io-client'
 
+const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+const PRODUCTION_API = 'https://syncquiz.onrender.com/api'
+const PRODUCTION_SOCKET = 'https://syncquiz.onrender.com'
+
 /* ── Derive Socket URL ──────────────────────────────────────────────────── */
 function getSocketUrl() {
   if (import.meta.env.VITE_SOCKET_URL) {
@@ -8,7 +12,7 @@ function getSocketUrl() {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL.trim().replace(/\/api\/?$/, '').replace(/\/+$/, '')
   }
-  return window.location.origin
+  return isDev ? window.location.origin : PRODUCTION_SOCKET
 }
 
 const SOCKET_URL = getSocketUrl()
