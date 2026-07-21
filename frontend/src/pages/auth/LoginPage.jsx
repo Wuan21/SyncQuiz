@@ -1,19 +1,24 @@
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router-dom'
-import { Zap } from 'lucide-react'
+import { Zap, Eye, EyeOff } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
 import { login, syncUser } from '../../api/auth.api'
 import useAuthStore from '../../store/useAuthStore'
 import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth'
 
-const isCognitoEnabled = !!(import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID && import.meta.env.VITE_AWS_COGNITO_CLIENT_ID)
+const isCognitoEnabled = !!(
+  import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID &&
+  import.meta.env.VITE_AWS_COGNITO_CLIENT_ID
+)
 
 export default function LoginPage() {
   const { t } = useTranslation()
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm()
   const loginSuccess = useAuthStore((s) => s.loginSuccess)
   const navigate = useNavigate()
+  const [showPw, setShowPw] = useState(false)
 
   const onSubmit = async (data) => {
     try {
@@ -27,13 +32,11 @@ export default function LoginPage() {
         } catch (authErr) {
           if (authErr?.message?.includes('already a signed in user')) {
             await signOut()
-            // Clear any lingering cognito keys in localStorage
             Object.keys(localStorage).forEach((key) => {
               if (key.startsWith('CognitoIdentityServiceProvider')) {
                 localStorage.removeItem(key)
               }
             })
-            // Retry sign in once
             await signIn({ username: data.email, password: data.password })
           } else {
             throw authErr
@@ -47,72 +50,99 @@ export default function LoginPage() {
         }
         const user = await syncUser()
         loginSuccess(user)
-        // Redirect admin to admin dashboard, others to regular dashboard
-        if (user?.role === 'admin') {
-          navigate('/admin', { replace: true })
-        } else {
-          navigate('/dashboard', { replace: true })
-        }
+        navigate(user?.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
       } else {
         const res = await login(data)
         loginSuccess(res)
-        if (res?.user?.role === 'admin') {
-          navigate('/admin', { replace: true })
-        } else {
-          navigate('/dashboard', { replace: true })
-        }
+        navigate(res?.user?.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
       }
     } catch (err) {
       toast.error(err.message || err.response?.data?.message || t('common.error'))
     }
   }
 
-
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+      {/* Background decoration */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-violet-600/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-pink-600/10 rounded-full blur-3xl" />
+      </div>
+
+      <div className="w-full max-w-sm relative">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <Zap className="text-violet-400" size={32} />
-          <span className="text-3xl font-bold bg-gradient-to-r from-violet-400 to-pink-400 bg-clip-text text-transparent">
-            SyncQuiz
-          </span>
+        <div className="flex flex-col items-center mb-8 sq-animate-fade-in">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center shadow-xl shadow-violet-500/25 mb-4">
+            <Zap size={26} className="text-white" />
+          </div>
+          <h1 className="text-2xl font-bold sq-gradient">SyncQuiz</h1>
+          <p className="text-white/40 text-sm mt-1">{t('auth.loginHeader')}</p>
         </div>
 
-        <div className="card">
-          <h1 className="text-2xl font-bold text-center mb-6">{t('auth.loginHeader')}</h1>
-
+        <div className="sq-card sq-animate-fade-up">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <label className="block text-sm text-white/60 mb-1">{t('auth.email')}</label>
+            {/* Email */}
+            <div className="sq-form-group">
+              <label className="sq-label">{t('auth.email')}</label>
               <input
                 {...register('email', { required: t('auth.requiredEmail') })}
                 type="email"
+                autoComplete="email"
                 placeholder="you@example.com"
-                className="input"
+                className="sq-input"
               />
-              {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>}
+              {errors.email && <p className="sq-error">{errors.email.message}</p>}
             </div>
 
-            <div>
-              <label className="block text-sm text-white/60 mb-1">{t('auth.password')}</label>
-              <input
-                {...register('password', { required: t('auth.requiredPassword') })}
-                type="password"
-                placeholder="••••••••"
-                className="input"
-              />
-              {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password.message}</p>}
+            {/* Password */}
+            <div className="sq-form-group">
+              <label className="sq-label">{t('auth.password')}</label>
+              <div className="relative">
+                <input
+                  {...register('password', { required: t('auth.requiredPassword') })}
+                  type={showPw ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  className="sq-input pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                >
+                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {errors.password && <p className="sq-error">{errors.password.message}</p>}
             </div>
 
-            <button type="submit" disabled={isSubmitting} className="btn-primary w-full mt-2">
-              {isSubmitting ? t('auth.signingIn') : t('auth.signInBtn')}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="sq-btn sq-btn-primary w-full py-3 mt-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  {t('auth.signingIn')}
+                </>
+              ) : (
+                t('auth.signInBtn')
+              )}
             </button>
           </form>
 
-          <p className="text-center text-white/50 text-sm mt-4">
+          <div className="sq-divider my-5" />
+
+          <p className="text-center text-sm text-white/40">
             {t('auth.noAccount')}{' '}
-            <Link to="/register" className="text-violet-400 hover:underline">{t('auth.signUpFree')}</Link>
+            <Link to="/register" className="text-violet-400 hover:text-violet-300 font-medium transition-colors">
+              {t('auth.signUpFree')}
+            </Link>
           </p>
         </div>
       </div>

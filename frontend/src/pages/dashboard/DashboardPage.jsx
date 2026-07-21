@@ -1,114 +1,200 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Zap, BookOpen, Users, Plus, Play } from 'lucide-react'
+import { Zap, BookOpen, Users, Plus, Play, TrendingUp, ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { motion } from 'framer-motion'
 import { getAnalytics } from '../../api/upload.api'
 import { getMyQuizzes } from '../../api/quizzes.api'
 import useAuthStore from '../../store/useAuthStore'
+import { SkeletonStat, SkeletonQuizCard } from '../../components/ui/Skeleton'
+import { EmptyState } from '../../components/ui/EmptyState'
 
-function StatCard({ icon: Icon, label, value, color }) {
+function StatCard({ icon: Icon, label, value, colorClass, delay = 0 }) {
   return (
-    <div className="card flex items-center gap-4">
-      <div className={`p-3 rounded-xl ${color}`}>
-        <Icon size={22} className="text-white" />
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay, ease: 'easeOut' }}
+      className="sq-stat group"
+    >
+      <div className={`sq-stat-icon ${colorClass}`}>
+        <Icon size={20} />
       </div>
       <div>
-        <p className="text-white/50 text-sm">{label}</p>
-        <p className="text-2xl font-bold">{value ?? '—'}</p>
+        <p className="sq-stat-value">{value ?? '—'}</p>
+        <p className="sq-stat-label">{label}</p>
       </div>
-    </div>
+    </motion.div>
+  )
+}
+
+function QuickAction({ to, icon: Icon, title, description, colorClass, delay = 0 }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay, ease: 'easeOut' }}
+    >
+      <Link
+        to={to}
+        className="sq-card flex items-center gap-4 group hover:border-white/20 block"
+      >
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all group-hover:scale-105 ${colorClass}`}>
+          <Icon size={22} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-base">{title}</p>
+          <p className="text-white/40 text-sm mt-0.5">{description}</p>
+        </div>
+        <ArrowRight size={18} className="text-white/20 group-hover:text-white/50 group-hover:translate-x-1 transition-all shrink-0" />
+      </Link>
+    </motion.div>
+  )
+}
+
+function QuizCard({ quiz, index }) {
+  const { t } = useTranslation()
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: index * 0.05, ease: 'easeOut' }}
+      className="sq-card group"
+    >
+      <div className="sq-quiz-cover">
+        {quiz.coverImageUrl
+          ? <img src={quiz.coverImageUrl} alt={quiz.title} />
+          : <BookOpen size={28} className="text-white/20" />
+        }
+      </div>
+      <h3 className="font-semibold truncate text-sm">{quiz.title}</h3>
+      <p className="text-white/35 text-xs mt-1 mb-3">
+        {quiz.questionCount} {t('dashboard.questionsCount', { count: quiz.questionCount })}
+      </p>
+      <div className="flex gap-2">
+        <Link to={`/quizzes/${quiz.id}/edit`} className="sq-btn sq-btn-secondary sq-btn-sm flex-1 text-center">
+          {t('common.edit')}
+        </Link>
+        <Link to={`/host/${quiz.id}`} className="sq-btn sq-btn-primary sq-btn-sm flex-1 text-center">
+          <Play size={12} /> {t('dashboard.host')}
+        </Link>
+      </div>
+    </motion.div>
   )
 }
 
 export default function DashboardPage() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
-  const { data: analytics } = useQuery({ queryKey: ['analytics'], queryFn: getAnalytics })
-  const { data: myQuizzes } = useQuery({ queryKey: ['quizzes', 'my'], queryFn: () => getMyQuizzes({ limit: 6 }) })
+  const { data: analytics, isLoading: analyticsLoading } = useQuery({
+    queryKey: ['analytics'],
+    queryFn: getAnalytics,
+  })
+  const { data: myQuizzes, isLoading: quizzesLoading } = useQuery({
+    queryKey: ['quizzes', 'my'],
+    queryFn: () => getMyQuizzes({ limit: 6 }),
+  })
+
+  const firstName = user?.fullName?.split(' ').slice(-1)[0] || user?.fullName?.split(' ')[0] || ''
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="sq-page">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">
-          {t('dashboard.welcome')} <span className="text-violet-400">{user?.fullName?.split(' ')[0]}</span> 👋
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="mb-8"
+      >
+        <h1 className="sq-page-title">
+          {t('dashboard.welcome')}{' '}
+          <span className="sq-gradient">{firstName}</span>
         </h1>
-        <p className="text-white/50 mt-1">{t('dashboard.subTitle')}</p>
-      </div>
+        <p className="sq-page-subtitle">{t('dashboard.subTitle')}</p>
+      </motion.div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value={analytics?.quizCount} color="bg-violet-600" />
-        <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value={analytics?.totalSessions} color="bg-pink-600" />
-        <StatCard icon={Users} label={t('dashboard.avgPlayers')} value={analytics?.avgPlayers} color="bg-blue-600" />
-      </div>
+      <section className="sq-section">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <StatCard
+            icon={BookOpen}
+            label={t('dashboard.totalQuizzes')}
+            value={analytics?.quizCount}
+            colorClass="bg-violet-500/15 text-violet-400"
+            delay={0}
+          />
+          <StatCard
+            icon={Zap}
+            label={t('dashboard.gamesHosted')}
+            value={analytics?.totalSessions}
+            colorClass="bg-pink-500/15 text-pink-400"
+            delay={0.06}
+          />
+          <StatCard
+            icon={Users}
+            label={t('dashboard.avgPlayers')}
+            value={analytics?.avgPlayers}
+            colorClass="bg-blue-500/15 text-blue-400"
+            delay={0.12}
+          />
+        </div>
+      </section>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-        <Link to="/quizzes/new"
-          className="card flex items-center gap-4 hover:border-violet-500 transition-colors cursor-pointer group">
-          <div className="p-4 bg-violet-600/20 rounded-xl group-hover:bg-violet-600/40 transition-colors">
-            <Plus size={28} className="text-violet-400" />
-          </div>
-          <div>
-            <p className="font-semibold text-lg">{t('dashboard.createQuizBtn')}</p>
-            <p className="text-white/50 text-sm">{t('dashboard.createQuizDesc')}</p>
-          </div>
-        </Link>
-
-        <Link to="/join"
-          className="card flex items-center gap-4 hover:border-pink-500 transition-colors cursor-pointer group">
-          <div className="p-4 bg-pink-600/20 rounded-xl group-hover:bg-pink-600/40 transition-colors">
-            <Play size={28} className="text-pink-400" />
-          </div>
-          <div>
-            <p className="font-semibold text-lg">{t('nav.joinGame')}</p>
-            <p className="text-white/50 text-sm">{t('dashboard.joinGameDesc')}</p>
-          </div>
-        </Link>
-      </div>
+      <section className="sq-section">
+        <h2 className="sq-section-title mb-4">{t('dashboard.quickActions') || 'Quick actions'}</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <QuickAction
+            to="/quizzes/new"
+            icon={Plus}
+            title={t('dashboard.createQuizBtn')}
+            description={t('dashboard.createQuizDesc')}
+            colorClass="bg-violet-500/15 text-violet-400"
+            delay={0.15}
+          />
+          <QuickAction
+            to="/join"
+            icon={Play}
+            title={t('nav.joinGame')}
+            description={t('dashboard.joinGameDesc')}
+            colorClass="bg-pink-500/15 text-pink-400"
+            delay={0.2}
+          />
+        </div>
+      </section>
 
       {/* My Quizzes */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">{t('dashboard.myQuizzes')}</h2>
-          <Link to="/quizzes" className="text-violet-400 text-sm hover:underline">{t('dashboard.viewAll')}</Link>
+      <section className="sq-section">
+        <div className="sq-section-header">
+          <h2 className="sq-section-title">{t('dashboard.myQuizzes')}</h2>
+          <Link to="/quizzes" className="text-violet-400 text-sm font-medium hover:text-violet-300 transition-colors flex items-center gap-1">
+            {t('dashboard.viewAll')} <ArrowRight size={14} />
+          </Link>
         </div>
 
-        {myQuizzes?.quizzes?.length === 0 ? (
-          <div className="card text-center py-12">
-            <BookOpen size={40} className="mx-auto text-white/20 mb-3" />
-            <p className="text-white/50">{t('dashboard.noQuizzesYet')}</p>
-            <Link to="/quizzes/new" className="btn-primary inline-block mt-4 text-sm">{t('dashboard.createFirstQuiz')}</Link>
+        {quizzesLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => <SkeletonQuizCard key={i} />)}
+          </div>
+        ) : !myQuizzes?.quizzes?.length ? (
+          <div className="sq-card">
+            <EmptyState
+              icon={BookOpen}
+              title={t('dashboard.noQuizzesYet')}
+              description={t('dashboard.createFirstQuizDesc') || 'Create your first quiz to get started'}
+              actionText={t('dashboard.createFirstQuiz')}
+              action={() => window.location.href = '/quizzes/new'}
+              actionVariant="primary"
+            />
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {myQuizzes?.quizzes?.map((q) => (
-              <QuizCard key={q.id} quiz={q} />
+            {myQuizzes.quizzes.map((q, i) => (
+              <QuizCard key={q.id} quiz={q} index={i} />
             ))}
           </div>
         )}
-      </div>
-    </div>
-  )
-}
-
-function QuizCard({ quiz }) {
-  const { t } = useTranslation()
-  return (
-    <div className="card hover:border-white/30 transition-colors">
-      <div className="h-32 bg-gradient-to-br from-violet-600/30 to-pink-600/30 rounded-xl mb-3 flex items-center justify-center overflow-hidden">
-        {quiz.coverImageUrl
-          ? <img src={quiz.coverImageUrl} alt={quiz.title} className="w-full h-full object-cover rounded-xl" />
-          : <BookOpen size={32} className="text-white/30" />
-        }
-      </div>
-      <h3 className="font-semibold truncate">{quiz.title}</h3>
-      <p className="text-white/40 text-sm mt-1">{quiz.questionCount} {t('dashboard.questionsCount', { count: quiz.questionCount })}</p>
-      <div className="flex gap-2 mt-3">
-        <Link to={`/quizzes/${quiz.id}/edit`} className="btn-secondary text-xs py-1.5 flex-1 text-center">{t('common.edit')}</Link>
-        <Link to={`/host/${quiz.id}`} className="btn-primary text-xs py-1.5 flex-1 text-center">{t('dashboard.host')}</Link>
-      </div>
+      </section>
     </div>
   )
 }
