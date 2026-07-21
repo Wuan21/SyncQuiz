@@ -1,11 +1,12 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import {
   Zap, LayoutDashboard, BookOpen, Compass, LogOut, Menu, X,
-  TrendingUp, ClipboardList, Users, Shield, Plus
+  TrendingUp, ClipboardList, Users, Shield, Plus, Sun, Moon
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useAuthStore from '../../store/useAuthStore'
+import { useTheme } from '../providers/ThemeProvider'
 
 const navLinks = [
   { to: '/dashboard', key: 'dashboard', icon: LayoutDashboard },
@@ -22,6 +23,7 @@ export default function Navbar() {
   const user = useAuthStore((s) => s.user)
   const logoutFn = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
+  const { theme, toggleTheme } = useTheme()
 
   const handleLogout = async () => {
     await logoutFn()
@@ -35,17 +37,15 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-gray-950/85 backdrop-blur-md border-b border-white/[0.07]">
+    <nav className="sticky top-0 z-50 bg-background/85 backdrop-blur-xl border-b border-border">
       <div className="sq-container h-16 flex items-center justify-between">
 
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 font-bold text-xl shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center shadow-lg shadow-violet-500/20">
-            <Zap size={16} className="text-white" />
+        <Link to="/" className="flex items-center gap-2.5 font-bold text-xl shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/25">
+            <Zap size={17} className="text-white" />
           </div>
-          <span className="bg-gradient-to-r from-violet-400 to-pink-400 bg-clip-text text-transparent font-bold tracking-tight">
-            SyncQuiz
-          </span>
+          <span className="sq-text-gradient font-bold tracking-tight">SyncQuiz</span>
         </Link>
 
         {/* Desktop links */}
@@ -56,11 +56,7 @@ export default function Navbar() {
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? 'bg-violet-500/15 text-violet-300'
-                      : 'text-white/45 hover:text-white hover:bg-white/[0.05]'
-                  }`
+                  `sq-nav-link ${isActive ? 'active' : ''}`
                 }
               >
                 <Icon size={15} />
@@ -71,11 +67,7 @@ export default function Navbar() {
               <NavLink
                 to="/admin"
                 className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? 'bg-red-500/15 text-red-300'
-                      : 'text-white/45 hover:text-white hover:bg-white/[0.05]'
-                  }`
+                  `sq-nav-link ${isActive ? '!bg-danger/10 !text-danger' : ''}`
                 }
               >
                 <Shield size={15} />
@@ -86,15 +78,26 @@ export default function Navbar() {
         )}
 
         {/* Right side */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+
           {/* Language switcher */}
           <button
             onClick={toggleLanguage}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/10 text-xs font-semibold text-white/50 hover:text-white hover:bg-white/[0.05] transition-all"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-surface text-xs font-semibold text-muted-foreground hover:bg-muted transition-all"
             title={i18n.language === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
           >
             <span>🌐</span>
             <span>{i18n.language === 'vi' ? 'VI' : 'EN'}</span>
+          </button>
+
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            className="sq-theme-toggle"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
 
           {user ? (
@@ -107,20 +110,18 @@ export default function Navbar() {
                 <span>{t('dashboard.createQuizBtn')}</span>
               </Link>
 
-              <div className="flex items-center gap-2">
-                {/* Avatar */}
+              <div className="flex items-center gap-1.5">
                 <Link to="/profile" className="block shrink-0">
                   <img
                     src={user.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.email}`}
                     alt={user.fullName}
-                    className="w-8 h-8 rounded-xl object-cover bg-violet-700 hover:ring-2 hover:ring-violet-400/50 transition-all"
+                    className="w-8 h-8 rounded-xl object-cover bg-muted border border-border hover:border-primary/50 transition-all"
                     title={t('nav.profile')}
                   />
                 </Link>
-                {/* Logout */}
                 <button
                   onClick={handleLogout}
-                  className="sq-btn sq-btn-ghost sq-btn-icon text-white/35 hover:text-white/70"
+                  className="sq-btn sq-btn-ghost sq-btn-icon text-muted-foreground"
                   title={t('nav.logout')}
                   aria-label={t('nav.logout')}
                 >
@@ -129,7 +130,7 @@ export default function Navbar() {
               </div>
             </>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Link to="/login" className="sq-btn sq-btn-secondary sq-btn-sm px-3">
                 {t('nav.login')}
               </Link>
@@ -139,9 +140,9 @@ export default function Navbar() {
             </div>
           )}
 
-          {/* Mobile menu button */}
+          {/* Mobile menu */}
           <button
-            className="md:hidden sq-btn sq-btn-ghost sq-btn-icon text-white/50"
+            className="md:hidden sq-btn sq-btn-ghost sq-btn-icon text-muted-foreground"
             onClick={() => setOpen(!open)}
             aria-label="Toggle menu"
             aria-expanded={open}
@@ -151,9 +152,9 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile menu drawer */}
       {open && user && (
-        <div className="md:hidden border-t border-white/[0.07] bg-gray-950/95 backdrop-blur-md">
+        <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-xl">
           <div className="sq-container py-3 flex flex-col gap-1">
             {navLinks.map(({ to, key, icon: Icon }) => (
               <NavLink
@@ -161,11 +162,7 @@ export default function Navbar() {
                 to={to}
                 onClick={() => setOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-violet-500/15 text-violet-300'
-                      : 'text-white/50 hover:text-white hover:bg-white/[0.05]'
-                  }`
+                  `sq-nav-link ${isActive ? 'active' : ''}`
                 }
               >
                 <Icon size={17} />
@@ -177,11 +174,7 @@ export default function Navbar() {
                 to="/admin"
                 onClick={() => setOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-red-500/15 text-red-300'
-                      : 'text-white/50 hover:text-white hover:bg-white/[0.05]'
-                  }`
+                  `sq-nav-link ${isActive ? '!bg-danger/10 !text-danger' : ''}`
                 }
               >
                 <Shield size={17} />

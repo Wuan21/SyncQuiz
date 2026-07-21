@@ -23,10 +23,7 @@ export default function LoginPage() {
   const onSubmit = async (data) => {
     try {
       if (isCognitoEnabled) {
-        try {
-          await signOut()
-        } catch (_) {}
-
+        try { await signOut() } catch (_) {}
         try {
           await signIn({ username: data.email, password: data.password })
         } catch (authErr) {
@@ -38,16 +35,11 @@ export default function LoginPage() {
               }
             })
             await signIn({ username: data.email, password: data.password })
-          } else {
-            throw authErr
-          }
+          } else { throw authErr }
         }
-
         const session = await fetchAuthSession()
         const token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
-        if (token) {
-          localStorage.setItem('accessToken', token)
-        }
+        if (token) { localStorage.setItem('accessToken', token) }
         const user = await syncUser()
         loginSuccess(user)
         navigate(user?.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
@@ -62,21 +54,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       {/* Background decoration */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-violet-600/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-pink-600/10 rounded-full blur-3xl" />
+      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute -top-32 -right-32 w-[28rem] h-[28rem] bg-[hsl(var(--color-primary))]/8 rounded-full blur-3xl" />
+        <div className="absolute -bottom-32 -left-32 w-[28rem] h-[28rem] bg-[hsl(var(--color-accent))]/6 rounded-full blur-3xl" />
       </div>
 
       <div className="w-full max-w-sm relative">
+
         {/* Logo */}
         <div className="flex flex-col items-center mb-8 sq-animate-fade-in">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center shadow-xl shadow-violet-500/25 mb-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[hsl(var(--color-primary))] to-[hsl(var(--color-accent))] flex items-center justify-center shadow-xl mb-4">
             <Zap size={26} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold sq-gradient">SyncQuiz</h1>
-          <p className="text-white/40 text-sm mt-1">{t('auth.loginHeader')}</p>
+          <h1 className="text-2xl font-bold sq-text-gradient">SyncQuiz</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t('auth.loginHeader')}</p>
         </div>
 
         <div className="sq-card sq-animate-fade-up">
@@ -108,7 +101,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
                   aria-label={showPw ? 'Hide password' : 'Show password'}
                 >
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -124,23 +117,21 @@ export default function LoginPage() {
             >
               {isSubmitting ? (
                 <>
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
                   {t('auth.signingIn')}
                 </>
-              ) : (
-                t('auth.signInBtn')
-              )}
+              ) : t('auth.signInBtn')}
             </button>
           </form>
 
-          <div className="sq-divider my-5" />
+          <hr className="sq-divider my-5" />
 
-          <p className="text-center text-sm text-white/40">
+          <p className="text-center text-sm text-muted-foreground">
             {t('auth.noAccount')}{' '}
-            <Link to="/register" className="text-violet-400 hover:text-violet-300 font-medium transition-colors">
+            <Link to="/register" className="text-primary font-semibold hover:text-[hsl(var(--color-primary-light))] transition-colors">
               {t('auth.signUpFree')}
             </Link>
           </p>
