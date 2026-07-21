@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -66,18 +66,31 @@ function QuizCard({ quiz, isFav, onFav, index }) {
 export default function ExplorePage() {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [category, setCategory] = useState('')
   const [favorites, setFavorites] = useState(() => {
     try { return JSON.parse(localStorage.getItem('syncquiz-favorites') || '[]') } catch { return [] }
   })
   const qc = useQueryClient()
 
+  // Debounce search — prevents API call on every keystroke
+  useEffect(() => {
+    const tid = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(tid)
+  }, [search])
+
   const { data, isLoading } = useQuery({
-    queryKey: ['quizzes', 'public', search, category],
-    queryFn: () => getQuizzes({ search, category, limit: 24 }),
+    queryKey: ['quizzes', 'public', debouncedSearch, category],
+    queryFn: () => getQuizzes({ search: debouncedSearch, category, limit: 24 }),
+    placeholderData: (prev) => prev,
   })
 
-  const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: getCategories })
+  const { data: categories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: getCategories,
+    staleTime: 5 * 60_000, // categories rarely change — cache for 5 min
+    gcTime: 30 * 60_000,
+  })
 
   const favMut = useMutation({
     mutationFn: toggleFavorite,

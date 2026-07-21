@@ -38,4 +38,7 @@ jobs:
         run: npm test --if-present
 
       - name: Build project
-        run: npm run build
+        run: |
+          cd backend
+          npm ci
+          npm run build

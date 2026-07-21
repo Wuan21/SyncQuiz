@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Plus, Search, Trash2, Copy, Edit, Play, BookOpen, ClipboardList, AlertTriangle } from 'lucide-react'
@@ -102,12 +102,20 @@ function QuizCard({ quiz, onDelete, onClone, onAssign, onHost, onEdit }) {
 
 export default function QuizListPage() {
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [assignQuiz, setAssignQuiz] = useState(null)
   const qc = useQueryClient()
 
+  // Debounce search — only call API 300ms after user stops typing
+  useEffect(() => {
+    const tid = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(tid)
+  }, [search])
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['quizzes', 'my', search],
-    queryFn: () => getMyQuizzes({ search, limit: 100 }),
+    queryKey: ['quizzes', 'my', debouncedSearch],
+    queryFn: () => getMyQuizzes({ search: debouncedSearch, limit: 50 }),
+    placeholderData: (prev) => prev,
   })
 
   const rawQuizzes = useMemo(() => {
