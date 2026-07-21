@@ -57,6 +57,13 @@ api.interceptors.response.use(
   },
   async (err) => {
     const original = err.config
+    if ((err.response?.status === 401 || err.response?.status === 403) && !original._retry) {
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('auth')
+      window.location.href = '/login'
+      return Promise.reject(err)
+    }
     if (err.response?.status === 401 && !original._retry) {
       if (isCognitoEnabled) {
         localStorage.removeItem('accessToken')

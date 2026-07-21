@@ -25,7 +25,7 @@ services:
       - key: JWT_REFRESH_EXPIRES_IN
         value: 7d
       - key: CORS_ORIGINS
-        sync: false        # Set to your frontend Render URL, e.g. https://syncquiz-frontend.onrender.com
+        value: https://syncquiz-frontend.onrender.com
       - key: GEMINI_API_KEY
         sync: false
       - key: AWS_REGION
@@ -64,9 +64,9 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        sync: false        # Set to your backend Render URL, e.g. https://syncquiz-backend.onrender.com/api
+        value: https://syncquiz-backend.onrender.com/api
       - key: VITE_SOCKET_URL
-        sync: false        # Set to your backend Render URL, e.g. https://syncquiz-backend.onrender.com
+        value: https://syncquiz-backend.onrender.com
       - key: VITE_AWS_COGNITO_USER_POOL_ID
         sync: false
       - key: VITE_AWS_COGNITO_CLIENT_ID
