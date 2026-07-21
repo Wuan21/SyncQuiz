@@ -55,7 +55,9 @@ class CategoriesController {
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Category.name, schema: CategorySchema }]),
+    MongooseModule.forFeature([
+      { name: Category.name, schema: CategorySchema },
+    ]),
   ],
   controllers: [CategoriesController],
   providers: [CategoriesService],

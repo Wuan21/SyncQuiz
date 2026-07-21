@@ -378,7 +378,8 @@ export class LiveService {
         message: 'Không tìm thấy phiên chơi',
       });
     }
-    const session: any = await this.sessionModel.findById(sessionId)
+    const session: any = await this.sessionModel
+      .findById(sessionId)
       .populate('quizId', 'title')
       .lean();
     if (!session) {
@@ -396,7 +397,7 @@ export class LiveService {
         message: 'Bạn không có quyền xem kết quả',
       });
     }
-    const quizTitle = (session.quizId as any)?.title || 'Kết quả game';
+    const quizTitle = session.quizId?.title || 'Kết quả game';
     return {
       success: true,
       data: {

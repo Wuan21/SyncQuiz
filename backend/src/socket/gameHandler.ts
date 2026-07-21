@@ -966,7 +966,12 @@ export const initSocket = (server: any) => {
     /* ── Disconnect ─────────────────────────────────────────────────── */
     socket.on('disconnect', async () => {
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[SOCKET] Disconnect:', socket.id, 'role:', socket.data?.role);
+        console.log(
+          '[SOCKET] Disconnect:',
+          socket.id,
+          'role:',
+          socket.data?.role,
+        );
       }
 
       const gameId = socket.data?.gameId;
@@ -980,7 +985,12 @@ export const initSocket = (server: any) => {
         if (role === 'player' && playerId) {
           await SessionModel.updateOne(
             { _id: gameId, 'players.playerId': playerId },
-            { $set: { 'players.$.connected': false, 'players.$.socketId': null } },
+            {
+              $set: {
+                'players.$.connected': false,
+                'players.$.socketId': null,
+              },
+            },
           );
           const game = activeGames.get(gameId);
           if (game) {

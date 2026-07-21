@@ -34,7 +34,9 @@ import { AdminModule } from './admin/admin.module';
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => {
         const uri = config.get<string>('MONGODB_URI') || '';
-        const retryWrites = uri.includes('retryWrites') ? '' : '?retryWrites=true&w=majority';
+        const retryWrites = uri.includes('retryWrites')
+          ? ''
+          : '?retryWrites=true&w=majority';
         return {
           uri: uri + retryWrites,
           dbName: config.get<string>('MONGODB_DB_NAME') || 'syncquiz',
