@@ -1,8 +1,8 @@
 import { io } from 'socket.io-client'
 
 const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-const PRODUCTION_API = 'https://syncquiz.onrender.com/api'
-const PRODUCTION_SOCKET = 'https://syncquiz.onrender.com'
+const PRODUCTION_API = 'https://syncquiz-backend.onrender.com/api'
+const PRODUCTION_SOCKET = 'https://syncquiz-backend.onrender.com'
 
 /* ── Derive Socket URL ──────────────────────────────────────────────────── */
 function getSocketUrl() {

@@ -6,7 +6,7 @@ const isCognitoEnabled = !!(import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID && imp
 const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || (isDev ? '/api' : 'https://syncquiz.onrender.com/api'),
+  baseURL: import.meta.env.VITE_API_URL || (isDev ? '/api' : 'https://syncquiz-backend.onrender.com/api'),
   withCredentials: true,
 })
 
