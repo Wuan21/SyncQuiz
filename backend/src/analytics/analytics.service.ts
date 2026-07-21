@@ -34,41 +34,55 @@ export class AnalyticsService {
       ? new Types.ObjectId(userId)
       : userId;
 
-    const [quizCount, sessions, myResults, achievements] = await Promise.all([
+    // Run in parallel — avoid fetching 50 full session documents
+    const [
+      quizCount,
+      totalSessions,
+      totalPlayersResult,
+      myResults,
+      achievements,
+    ] = await Promise.all([
       this.quizModel.countDocuments({
         ownerId: userObjectId,
         isDeleted: false,
       }),
-      this.sessionModel
-        .find({ hostId: userId.toString() })
-        .sort({ createdAt: -1 })
-        .limit(50)
-        .lean(),
+
+      // Count total sessions without fetching documents
+      this.sessionModel.countDocuments({ hostId: userId.toString() }),
+
+      // Aggregate to compute total players in one DB round-trip (no full doc fetch)
+      (this.sessionModel as any)
+        .aggregate([
+          { $match: { hostId: userId.toString() } },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: { $size: { $ifNull: ['$players', []] } } },
+            },
+          },
+        ])
+        .exec(),
+
       this.resultModel
         .find({ hostId: userId.toString() })
         .sort({ createdAt: -1 })
         .limit(20)
         .lean(),
+
       this.achievementModel.find({ userId: userObjectId }).lean(),
     ]);
 
-    const totalPlayers = sessions.reduce(
-      (acc: number, s: any) => acc + (s.players?.length || 0),
-      0,
-    );
-
-    const avgPlayers = sessions.length
-      ? Math.round(totalPlayers / sessions.length)
+    const stats = totalPlayersResult[0] || { total: 0 };
+    const totalPlayers = stats.total;
+    const avgPlayers = totalSessions
+      ? Math.round(totalPlayers / totalSessions)
       : 0;
 
-    const recentSessions = (myResults.length ? myResults : sessions).slice(
-      0,
-      10,
-    );
+    const recentSessions = (myResults.length ? myResults : []).slice(0, 10);
 
     return {
       quizCount,
-      totalSessions: sessions.length,
+      totalSessions: totalSessions,
       totalPlayers,
       avgPlayers,
       achievementsCount: achievements.length,
