@@ -392,7 +392,10 @@ export const initSocket = (server: any) => {
   });
 
   io.on('connection', (socket: any) => {
-    console.log('[SOCKET] New connection:', socket.id);
+    // Only log in non-production — Socket.IO heartbeat floods logs in production
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[SOCKET] New connection:', socket.id);
+    }
 
     /* ── HOST: attach to game ────────────────────────────────────────── */
     socket.on(
@@ -962,37 +965,34 @@ export const initSocket = (server: any) => {
 
     /* ── Disconnect ─────────────────────────────────────────────────── */
     socket.on('disconnect', async () => {
-      const { gameId, playerId, role } = socket.data;
-      console.log('[SOCKET] Disconnect:', socket.id, 'role:', role);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[SOCKET] Disconnect:', socket.id, 'role:', socket.data?.role);
+      }
 
+      const gameId = socket.data?.gameId;
       if (!gameId) return;
+
+      const role = socket.data?.role;
+      const playerId = socket.data?.playerId;
 
       try {
         const SessionModel = getSessionModel();
         if (role === 'player' && playerId) {
           await SessionModel.updateOne(
             { _id: gameId, 'players.playerId': playerId },
-            {
-              $set: {
-                'players.$.connected': false,
-                'players.$.socketId': null,
-              },
-            },
+            { $set: { 'players.$.connected': false, 'players.$.socketId': null } },
           );
-          // Remove from in-memory state (but keep playerByPlayerId for rejoin)
           const game = activeGames.get(gameId);
           if (game) {
             delete game.players[socket.id];
-          }
-          const session: any = await SessionModel.findById(gameId).lean();
-          if (session) {
-            const players = (session.players || []).map((item: any) => ({
-              playerId: item.playerId,
-              nickname: item.nickname,
-              teamName: item.teamName,
-              avatar: item.avatar,
-              avatarIndex: item.avatarIndex,
-              connected: item.connected,
+            // Emit updated list from in-memory state — no extra DB query
+            const players = Object.values(game.players).map((p) => ({
+              playerId: p.playerId,
+              nickname: p.nickname,
+              teamName: p.teamName || '',
+              avatar: '😀',
+              avatarIndex: p.avatarIndex,
+              connected: !!p.socketId,
             }));
             io.to(getGameRoom(gameId)).emit('player-list:updated', players);
           }
@@ -1002,11 +1002,19 @@ export const initSocket = (server: any) => {
           const game = activeGames.get(gameId);
           if (game) {
             game.hostSocketId = '';
-            io.to(getGameRoom(gameId)).emit('game:host_left');
+            // Grace period: emit host_left only if host hasn't reconnected after 60s
+            setTimeout(() => {
+              const currentGame = activeGames.get(gameId);
+              if (currentGame && currentGame.hostSocketId === '') {
+                io.to(getGameRoom(gameId)).emit('game:host_left');
+              }
+            }, 60_000);
           }
         }
       } catch (err: any) {
-        console.error('[DISCONNECT]', err.message);
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('[DISCONNECT]', err.message);
+        }
       }
     });
   });

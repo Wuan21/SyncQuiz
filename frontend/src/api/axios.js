@@ -48,6 +48,9 @@ const mapIds = (obj) => {
   return obj
 }
 
+// Guard against multiple simultaneous redirects
+let _authRedirecting = false
+
 // Auto-refresh on 401
 let refreshing = null
 api.interceptors.response.use(
@@ -56,42 +59,28 @@ api.interceptors.response.use(
     return res
   },
   async (err) => {
+    const status = err.response?.status
     const original = err.config
-    if ((err.response?.status === 401 || err.response?.status === 403) && !original._retry) {
+
+    // Distinguish auth failure from server errors
+    if (status === 401 || status === 403) {
+      if (_authRedirecting) return Promise.reject(err)
+      _authRedirecting = true
+
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('auth')
+
+      // Give a short delay so pending requests can also hit this block
+      await new Promise((r) => setTimeout(r, 100))
+
       window.location.href = '/login'
       return Promise.reject(err)
     }
-    if (err.response?.status === 401 && !original._retry) {
-      if (isCognitoEnabled) {
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
-        localStorage.removeItem('auth')
-        window.location.href = '/login'
-        return Promise.reject(err)
-      }
 
-      original._retry = true
-      if (!refreshing) {
-        refreshing = api
-          .post('/auth/refresh', { refreshToken: localStorage.getItem('refreshToken') })
-          .then(({ data }) => {
-            localStorage.setItem('accessToken', data.accessToken)
-            localStorage.setItem('refreshToken', data.refreshToken)
-          })
-          .catch(() => {
-            localStorage.clear()
-            window.location.href = '/login'
-          })
-          .finally(() => {
-            refreshing = null
-          })
-      }
-      await refreshing
-      return api(original)
-    }
+    // Network errors (no response) — propagate, don't redirect
+    if (!status) return Promise.reject(err)
+
     return Promise.reject(err)
   },
 )

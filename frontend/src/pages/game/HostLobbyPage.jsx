@@ -80,69 +80,105 @@ export default function HostLobbyPage() {
   const [isConnected, setIsConnected] = useState(false)
   const hasCreated = useRef(false)
   const quizIdRef = useRef(quizId)
+  const abortRef = useRef(null)
 
   const joinUrl = pin ? `${window.location.origin}/join/${pin}` : ''
 
   const initGame = async () => {
     if (!quizId) return
+    if (hasCreated.current) return
     hasCreated.current = true
+
+    // Cancel any in-flight request from previous mount
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
+
     setPhase('creating')
     setErrorMsg('')
 
+    // Helper to safely set state only if still mounted
+    const safeSet = (setter) => {
+      if (!abortRef.current?.signal.aborted) setter()
+    }
+
     try {
       const response = await createSession({ quizId })
+      if (abortRef.current?.signal.aborted) return
+
       const data = response.data || response
       const newGameId = data.gameId || data.id || data._id
       const newPin = data.pin
 
       if (!newGameId || !newPin) {
-        setPhase('error')
-        setErrorMsg('Phản hồi không hợp lệ từ server')
+        safeSet(() => { setPhase('error'); setErrorMsg('Phản hồi không hợp lệ từ server') })
         return
       }
 
-      setGameId(newGameId)
-      setPin(newPin)
+      safeSet(() => { setGameId(newGameId); setPin(newPin) })
 
       try {
         await connectSocket()
       } catch (socketErr) {
-        console.warn('[HOST LOBBY] Socket connection failed, game still playable:', socketErr.message)
+        console.warn('[HOST LOBBY] Socket failed (game still playable):', socketErr.message)
       }
 
       if (socket.connected) {
         try {
           await new Promise((resolve, reject) => {
-            const timeoutId = window.setTimeout(() => reject(new Error('Host attach timeout')), 15000)
+            const tid = window.setTimeout(() => reject(new Error('host_attach_timeout')), 15_000)
             socket.emit('host:attach-game', { gameId: newGameId, pin: newPin }, (result) => {
-              window.clearTimeout(timeoutId)
-              if (!result?.success) { reject(new Error(result?.message || 'Host attach failed')); return }
-              if (result.players) setPlayers(result.players)
+              window.clearTimeout(tid)
+              if (!result?.success) { reject(new Error(result?.message || 'host_attach_failed')); return }
+              if (result.players) safeSet(() => setPlayers(result.players))
               resolve(result)
             })
           })
-          setIsConnected(true)
+          safeSet(() => setIsConnected(true))
         } catch (attachErr) {
-          console.warn('[HOST LOBBY] Attach failed, game still playable:', attachErr.message)
+          console.warn('[HOST LOBBY] Attach failed:', attachErr.message)
         }
       }
 
       sessionStorage.setItem('syncquiz-host-session', JSON.stringify({ gameId: newGameId, pin: newPin }))
-      setPhase('lobby')
+      safeSet(() => setPhase('lobby'))
     } catch (err) {
+      if (abortRef.current?.signal.aborted) return
       console.error('[HOST LOBBY] Init error:', err)
+
       const status = err?.response?.status
+      const code = err?.response?.data?.code
       const msg = err?.response?.data?.message || err?.message || ''
-      setPhase('error')
-      if (status === 401 || status === 403 || msg.toLowerCase().includes('unauthorized')) {
-        setErrorMsg('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.')
+
+      // Network error (cold start / no response) — distinguish from game logic errors
+      if (!status && !code) {
+        safeSet(() => {
+          setPhase('error')
+          setErrorMsg('Máy chủ đang khởi động, vui lòng chờ trong giây lát...')
+        })
+        toast.error('Máy chủ đang khởi động, vui lòng thử lại sau vài giây')
+        return
+      }
+
+      if (status === 401 || status === 403 || code === 'UNAUTHENTICATED' || msg.toLowerCase().includes('unauthorized')) {
+        safeSet(() => {
+          setPhase('error')
+          setErrorMsg('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.')
+        })
         localStorage.removeItem('accessToken')
         localStorage.removeItem('auth')
         setTimeout(() => navigate('/login'), 2000)
+      } else if (status === 404 || code === 'QUIZ_NOT_FOUND') {
+        safeSet(() => {
+          setPhase('error')
+          setErrorMsg('Quiz không tồn tại hoặc đã bị xóa.')
+        })
       } else {
-        setErrorMsg(msg || 'Đã xảy ra lỗi khi tạo phòng')
+        safeSet(() => {
+          setPhase('error')
+          setErrorMsg(msg || 'Đã xảy ra lỗi khi tạo phòng')
+        })
+        toast.error(msg || 'Đã xảy ra lỗi khi tạo phòng')
       }
-      toast.error(msg || 'Đã xảy ra lỗi khi tạo phòng')
     }
   }
 
@@ -152,6 +188,7 @@ export default function HostLobbyPage() {
       quizIdRef.current = quizId
     }
     initGame()
+    return () => { abortRef.current?.abort() }
   }, [quizId])
 
   useEffect(() => {

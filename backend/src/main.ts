@@ -58,15 +58,18 @@ async function bootstrap() {
   // RolesGuard is applied per-route via @UseGuards
   app.useGlobalGuards(new RolesGuard(new Reflector()));
 
-  /* ── Swagger docs ─────────────────────────────────────────────── */
-  const config = new DocumentBuilder()
-    .setTitle('SyncQuiz API')
-    .setDescription('SyncQuiz REST API documentation')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  /* ── Swagger docs (opt-in via ENABLE_SWAGGER=true) ────────────── */
+  if (process.env.ENABLE_SWAGGER === 'true') {
+    const config = new DocumentBuilder()
+      .setTitle('SyncQuiz API')
+      .setDescription('SyncQuiz REST API documentation')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('docs', app, document);
+    logger.log('📖 Swagger docs enabled at /docs');
+  }
 
   /* ── Initialize Socket.IO attached to the same HTTP server ───── */
   const httpServer = createServer(app.getHttpAdapter().getInstance());
