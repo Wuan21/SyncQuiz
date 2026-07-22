@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -8,9 +7,6 @@ import { getMyFavorites, toggleFavorite } from '../../api/quizzes.api'
 
 export default function FavoritesPage() {
   const { t } = useTranslation()
-  const [favorites, setFavorites] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('syncquiz-favorites') || '[]') } catch { return [] }
-  })
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -36,47 +32,48 @@ export default function FavoritesPage() {
   const quizzes = (data?.quizzes || data?.data || [])
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="sq-page">
       <div className="flex items-center gap-3 mb-8">
-        <Link to="/explore" className="btn-secondary p-2 rounded-lg hover:bg-white/10">
+        <Link to="/explore" className="sq-btn sq-btn-secondary sq-btn-icon" aria-label="Back">
           <ArrowLeft size={18} />
         </Link>
-        <Heart size={28} className="text-red-400" />
-        <h1 className="text-3xl font-bold">{t('favorites.title')}</h1>
+        <Heart size={28} className="sq-text-danger" />
+        <h1 className="sq-page-title">{t('favorites.title')}</h1>
       </div>
 
       {isLoading ? (
-        <div className="text-center py-16 text-white/40">{t('common.loading')}</div>
+        <div className="text-center py-16 sq-text-muted">{t('common.loading')}</div>
       ) : quizzes.length === 0 ? (
-        <div className="card text-center py-16">
-          <Heart size={48} className="mx-auto text-white/10 mb-4" />
-          <p className="text-white/40 text-lg mb-2">{t('favorites.noFavorites')}</p>
-          <p className="text-white/20 text-sm mb-6">{t('favorites.noFavoritesHint')}</p>
-          <Link to="/explore" className="btn-primary text-sm py-2 px-5 inline-flex items-center gap-2">
+        <div className="sq-card text-center py-16">
+          <Heart size={48} className="mx-auto sq-text-subtle opacity-50 mb-4" />
+          <p className="sq-text-muted text-lg mb-2">{t('favorites.noFavorites')}</p>
+          <p className="sq-text-subtle text-sm mb-6">{t('favorites.noFavoritesHint')}</p>
+          <Link to="/explore" className="sq-btn sq-btn-primary text-sm py-2 px-5 inline-flex items-center gap-2">
             <BookOpen size={16} /> {t('favorites.exploreQuizzes')}
           </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {quizzes.map((quiz) => (
-            <div key={quiz.id} className="card hover:border-white/30 transition-colors relative">
+            <div key={quiz.id} className="sq-card relative">
               <button
                 onClick={() => favMut.mutate(quiz.id)}
-                className="absolute top-3 right-3 p-2 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                className="absolute top-3 right-3 sq-btn sq-btn-icon sq-bg-danger-soft sq-text-danger hover:sq-bg-danger-light sq-border sq-border-danger w-9 h-9 rounded-full"
                 title="Remove from favorites"
+                aria-label="Remove from favorites"
               >
                 <Heart size={16} fill="currentColor" />
               </button>
 
-              <div className="h-32 bg-gradient-to-br from-violet-600/30 to-pink-600/30 rounded-xl mb-3 overflow-hidden flex items-center justify-center">
+              <div className="sq-quiz-cover">
                 {quiz.coverImageUrl
-                  ? <img src={quiz.coverImageUrl} alt={quiz.title} className="w-full h-full object-cover" />
-                  : <BookOpen size={28} className="text-white/20" />
+                  ? <img src={quiz.coverImageUrl} alt={quiz.title} />
+                  : <BookOpen size={28} className="sq-text-subtle opacity-60" />
                 }
               </div>
-              <h3 className="font-semibold truncate pr-8">{quiz.title}</h3>
-              <p className="text-white/40 text-xs mt-1">{quiz.questionCount} {t('explore.questions')} &middot; {quiz.totalPlays} {t('explore.plays')}</p>
-              <Link to="/join" state={{ fromQuiz: quiz.id }} className="btn-primary w-full text-sm mt-3 flex items-center justify-center gap-2">
+              <h3 className="font-semibold truncate pr-8 sq-text-foreground">{quiz.title}</h3>
+              <p className="sq-text-subtle text-xs mt-1">{quiz.questionCount} {t('explore.questions')} &middot; {quiz.totalPlays} {t('explore.plays')}</p>
+              <Link to="/join" state={{ fromQuiz: quiz.id }} className="sq-btn sq-btn-primary w-full text-sm mt-3 flex items-center justify-center gap-2">
                 <Play size={14} /> {t('explore.play')}
               </Link>
             </div>

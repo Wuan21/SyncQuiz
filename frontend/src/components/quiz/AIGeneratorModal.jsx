@@ -7,10 +7,15 @@ import { generateAIQuiz } from '../../api/advanced.api'
 
 const COUNTS = [3, 5, 8, 10, 15, 20]
 const DIFFICULTIES = [
-  { value: 'easy', color: 'text-green-400' },
-  { value: 'medium', color: 'text-yellow-400' },
-  { value: 'hard', color: 'text-red-400' },
+  { value: 'easy', colorKey: 'success' },
+  { value: 'medium', colorKey: 'warning' },
+  { value: 'hard', colorKey: 'danger' },
 ]
+const COLOR_CLASSES = {
+  success: 'sq-text-success',
+  warning: 'sq-text-warning',
+  danger: 'sq-text-danger',
+}
 const LANGUAGES = ['Vietnamese', 'English', 'Bilingual (Vi + En)']
 
 export default function AIGeneratorModal({ onImport, onClose }) {
@@ -34,22 +39,23 @@ export default function AIGeneratorModal({ onImport, onClose }) {
   const selectedDiff = DIFFICULTIES.find((d) => d.value === form.difficulty)
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-gray-900 border border-white/10 rounded-t-3xl sm:rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto shadow-2xl">
+    <div className="fixed inset-0 sq-bg-overlay backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="sq-card sq-card-flush w-full max-w-2xl max-h-[92vh] overflow-y-auto shadow-2xl rounded-t-3xl sm:rounded-2xl">
 
         {/* Header */}
-        <div className="sticky top-0 bg-gray-900/95 backdrop-blur flex items-center justify-between px-6 py-4 border-b border-white/10 z-10">
+        <div className="sticky top-0 sq-bg-overlay backdrop-blur flex items-center justify-between px-6 py-4 sq-border-b z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-violet-600/20 rounded-xl flex items-center justify-center">
-              <Sparkles size={20} className="text-violet-400" />
+            <div className="w-10 h-10 sq-bg-primary-soft rounded-xl flex items-center justify-center">
+              <Sparkles size={20} className="sq-text-primary-light" />
             </div>
             <div>
-              <h2 className="font-bold text-lg leading-tight">{t('aiGenerator.title')}</h2>
-              <p className="text-white/40 text-xs">{t('aiGenerator.subTitle')}</p>
+              <h2 className="font-bold text-lg leading-tight sq-text-foreground">{t('aiGenerator.title')}</h2>
+              <p className="sq-text-subtle text-xs">{t('aiGenerator.subTitle')}</p>
             </div>
           </div>
           <button onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+            className="w-8 h-8 rounded-full sq-bg-surface hover:sq-bg-surface-2 flex items-center justify-center sq-text-muted hover:sq-text-foreground transition-colors"
+            aria-label="Close">
             <X size={16} />
           </button>
         </div>
@@ -59,32 +65,32 @@ export default function AIGeneratorModal({ onImport, onClose }) {
             <div className="space-y-5">
               {/* Topic */}
               <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">
-                  {t('aiGenerator.topicLabel')} <span className="text-red-400">*</span>
+                <label className="sq-label">
+                  {t('aiGenerator.topicLabel')} <span className="sq-text-danger">*</span>
                 </label>
                 <input
                   value={form.topic}
                   onChange={(e) => set('topic', e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && form.topic.trim() && mutation.mutate(form)}
                   placeholder={t('aiGenerator.topicPlaceholder')}
-                  className="input text-base"
+                  className="sq-input mt-2 text-base"
                   autoFocus
                 />
               </div>
 
               {/* Count */}
               <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">{t('aiGenerator.countLabel')}</label>
-                <div className="flex gap-2 flex-wrap">
+                <label className="sq-label">{t('aiGenerator.countLabel')}</label>
+                <div className="flex gap-2 flex-wrap mt-2">
                   {COUNTS.map((n) => (
                     <button
                       key={n}
                       type="button"
                       onClick={() => set('count', n)}
-                      className={`w-12 h-10 rounded-xl font-semibold text-sm transition-all ${
+                      className={`w-12 h-10 rounded-xl font-semibold text-sm transition-all sq-border ${
                         form.count === n
-                          ? 'bg-violet-600 text-white scale-105'
-                          : 'bg-white/10 text-white/60 hover:bg-white/20'
+                          ? 'sq-bg-primary sq-text-primary-foreground scale-105 sq-border-primary'
+                          : 'sq-bg-surface sq-text-muted hover:sq-bg-surface-2'
                       }`}
                     >
                       {n}
@@ -95,21 +101,21 @@ export default function AIGeneratorModal({ onImport, onClose }) {
 
               {/* Difficulty */}
               <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">{t('aiGenerator.difficultyLabel')}</label>
-                <div className="grid grid-cols-3 gap-2">
+                <label className="sq-label">{t('aiGenerator.difficultyLabel')}</label>
+                <div className="grid grid-cols-3 gap-2 mt-2">
                   {DIFFICULTIES.map((d) => (
                     <button
                       key={d.value}
                       type="button"
                       onClick={() => set('difficulty', d.value)}
-                      className={`p-3 rounded-xl border text-left transition-all ${
+                      className={`p-3 rounded-xl sq-border text-left transition-all sq-text-foreground ${
                         form.difficulty === d.value
-                          ? 'border-violet-500 bg-violet-500/10'
-                          : 'border-white/10 bg-white/5 hover:border-white/25'
+                          ? 'sq-border-primary sq-bg-primary-soft'
+                          : 'sq-bg-surface hover:sq-border-hover'
                       }`}
                     >
-                      <p className={`font-semibold text-sm ${d.color}`}>{t(`aiGenerator.${d.value}`)}</p>
-                      <p className="text-white/40 text-xs mt-0.5">{t(`aiGenerator.${d.value}Desc`)}</p>
+                      <p className={`font-semibold text-sm ${COLOR_CLASSES[d.colorKey]}`}>{t(`aiGenerator.${d.value}`)}</p>
+                      <p className="sq-text-subtle text-xs mt-0.5">{t(`aiGenerator.${d.value}Desc`)}</p>
                     </button>
                   ))}
                 </div>
@@ -117,11 +123,11 @@ export default function AIGeneratorModal({ onImport, onClose }) {
 
               {/* Language */}
               <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">{t('aiGenerator.languageLabel')}</label>
+                <label className="sq-label">{t('aiGenerator.languageLabel')}</label>
                 <select
                   value={form.language}
                   onChange={(e) => set('language', e.target.value)}
-                  className="select"
+                  className="sq-select mt-2"
                 >
                   {LANGUAGES.map((l) => (
                     <option key={l} value={l}>
@@ -134,13 +140,13 @@ export default function AIGeneratorModal({ onImport, onClose }) {
               </div>
 
               {/* Summary */}
-              <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
-                <Sparkles size={16} className="text-violet-400 shrink-0" />
-                <span className="text-white/70">
-                  {t('aiGenerator.summaryPrefix')} <span className="text-white font-semibold">{t('aiGenerator.summaryQuestions', { count: form.count })}</span> {t('aiGenerator.summaryTopic')}{' '}
-                  <span className="text-white font-semibold">"{form.topic || '...'}"</span>,{' '}
-                  {t('aiGenerator.summaryDifficulty')} <span className={`font-semibold ${selectedDiff?.color}`}>{t(`aiGenerator.${form.difficulty}`)}</span>,{' '}
-                  {t('aiGenerator.summaryLanguage')}: <span className="text-white font-semibold">
+              <div className="sq-bg-primary-soft sq-border sq-border-primary rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
+                <Sparkles size={16} className="sq-text-primary-light shrink-0" />
+                <span className="sq-text-muted">
+                  {t('aiGenerator.summaryPrefix')} <span className="sq-text-foreground font-semibold">{t('aiGenerator.summaryQuestions', { count: form.count })}</span> {t('aiGenerator.summaryTopic')}{' '}
+                  <span className="sq-text-foreground font-semibold">"{form.topic || '...'}"</span>,{' '}
+                  {t('aiGenerator.summaryDifficulty')} <span className={`font-semibold ${COLOR_CLASSES[selectedDiff?.colorKey]}`}>{t(`aiGenerator.${form.difficulty}`)}</span>,{' '}
+                  {t('aiGenerator.summaryLanguage')}: <span className="sq-text-foreground font-semibold">
                     {form.language === 'Vietnamese' ? t('aiGenerator.langVietnamese') :
                      form.language === 'English' ? t('aiGenerator.langEnglish') :
                      t('aiGenerator.langBilingual')}
@@ -151,7 +157,7 @@ export default function AIGeneratorModal({ onImport, onClose }) {
               <button
                 onClick={() => mutation.mutate(form)}
                 disabled={!form.topic.trim() || mutation.isPending}
-                className="btn-primary w-full py-3.5 text-base flex items-center justify-center gap-2"
+                className="sq-btn sq-btn-primary w-full py-3.5 text-base"
               >
                 {mutation.isPending
                   ? <><Loader size={18} className="animate-spin" /> {t('aiGenerator.generating')}</>
@@ -159,10 +165,10 @@ export default function AIGeneratorModal({ onImport, onClose }) {
                 }
               </button>
 
-              <p className="text-center text-white/25 text-xs">
+              <p className="text-center sq-text-subtle text-xs">
                 {t('aiGenerator.free')} •{' '}
                 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
-                  className="text-violet-400/60 hover:text-violet-400 underline transition-colors">
+                  className="sq-text-primary opacity-70 hover:opacity-100 underline transition-opacity">
                   {t('aiGenerator.getApiKey')}
                 </a>
               </p>
@@ -172,27 +178,27 @@ export default function AIGeneratorModal({ onImport, onClose }) {
               {/* Preview header */}
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold">{t('aiGenerator.previewTitle', { count: preview.length })}</p>
-                  <p className="text-white/40 text-sm mt-0.5">{t('aiGenerator.previewTopic')}: {form.topic}</p>
+                  <p className="font-semibold sq-text-foreground">{t('aiGenerator.previewTitle', { count: preview.length })}</p>
+                  <p className="sq-text-subtle text-sm mt-0.5">{t('aiGenerator.previewTopic')}: {form.topic}</p>
                 </div>
-                <span className="badge bg-green-500/20 text-green-400 border border-green-500/20">
+                <span className="sq-badge sq-badge-success">
                   <CheckCircle size={12} /> AI Generated
                 </span>
               </div>
 
               <div className="space-y-3 max-h-[52vh] overflow-y-auto pr-1">
                 {preview.map((q, i) => (
-                  <div key={i} className="bg-white/5 border border-white/8 rounded-xl p-4 hover:border-white/15 transition-colors">
-                    <p className="font-medium text-sm mb-3 leading-snug">
-                      <span className="text-violet-400 font-bold mr-1">Q{i + 1}.</span>
+                  <div key={i} className="sq-bg-surface sq-border rounded-xl p-4 hover:sq-border-hover transition-colors">
+                    <p className="font-medium text-sm mb-3 leading-snug sq-text-foreground">
+                      <span className="sq-text-primary font-bold mr-1">Q{i + 1}.</span>
                       {q.content}
                     </p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {q.options.map((o, oi) => (
-                        <div key={oi} className={`text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 ${
+                        <div key={oi} className={`text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 sq-border ${
                           o.isCorrect
-                            ? 'bg-green-500/15 text-green-300 border border-green-500/25'
-                            : 'bg-white/5 text-white/45 border border-white/5'
+                            ? 'sq-bg-success-soft sq-text-success sq-border-success'
+                            : 'sq-bg-surface sq-text-muted sq-border'
                         }`}>
                           {o.isCorrect && <CheckCircle size={11} className="shrink-0" />}
                           <span className="truncate">{o.text}</span>
@@ -200,7 +206,7 @@ export default function AIGeneratorModal({ onImport, onClose }) {
                       ))}
                     </div>
                     {q.explanation && (
-                      <p className="text-white/35 text-xs mt-2.5 flex items-start gap-1.5">
+                      <p className="sq-text-subtle text-xs mt-2.5 flex items-start gap-1.5">
                         <span className="shrink-0">💡</span>
                         <span>{q.explanation}</span>
                       </p>
@@ -209,16 +215,16 @@ export default function AIGeneratorModal({ onImport, onClose }) {
                 ))}
               </div>
 
-              <div className="flex gap-3 pt-1 sticky bottom-0 bg-gray-900 pb-1">
+              <div className="flex gap-3 pt-1 sticky bottom-0 sq-bg-overlay pb-1">
                 <button
                   onClick={() => { setPreview(null); mutation.reset() }}
-                  className="btn-secondary flex-1"
+                  className="sq-btn sq-btn-secondary flex-1"
                 >
                   ↺ {t('aiGenerator.regenerateBtn')}
                 </button>
                 <button
                   onClick={() => { onImport(preview); onClose() }}
-                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  className="sq-btn sq-btn-primary flex-1"
                 >
                   <CheckCircle size={16} />
                   {t('aiGenerator.importBtn', { count: preview.length })}

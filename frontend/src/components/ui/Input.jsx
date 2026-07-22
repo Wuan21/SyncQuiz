@@ -1,6 +1,7 @@
 /**
  * SyncQuiz Input Component
  * Wraps form inputs with consistent styling, label, and error message
+ * Uses theme tokens so it works in light + dark modes
  */
 export function Input({
   label,
@@ -16,7 +17,7 @@ export function Input({
       {label && (
         <label className="sq-label">
           {label}
-          {required && <span className="text-red-400 ml-0.5">*</span>}
+          {required && <span className="sq-text-danger ml-0.5">*</span>}
         </label>
       )}
       <input
@@ -24,7 +25,7 @@ export function Input({
         {...props}
       />
       {error && <p className="sq-error">{error}</p>}
-      {hint && !error && <p className="text-xs text-white/30 mt-1">{hint}</p>}
+      {hint && !error && <p className="sq-hint">{hint}</p>}
     </div>
   )
 }
@@ -43,14 +44,14 @@ export function Select({
       {label && (
         <label className="sq-label">
           {label}
-          {required && <span className="text-red-400 ml-0.5">*</span>}
+          {required && <span className="sq-text-danger ml-0.5">*</span>}
         </label>
       )}
       <select className={`sq-select ${error ? 'error' : ''}`} {...props}>
         {children}
       </select>
       {error && <p className="sq-error">{error}</p>}
-      {hint && !error && <p className="text-xs text-white/30 mt-1">{hint}</p>}
+      {hint && !error && <p className="sq-hint">{hint}</p>}
     </div>
   )
 }
@@ -68,7 +69,7 @@ export function Textarea({
       {label && (
         <label className="sq-label">
           {label}
-          {required && <span className="text-red-400 ml-0.5">*</span>}
+          {required && <span className="sq-text-danger ml-0.5">*</span>}
         </label>
       )}
       <textarea
@@ -76,7 +77,7 @@ export function Textarea({
         {...props}
       />
       {error && <p className="sq-error">{error}</p>}
-      {hint && !error && <p className="text-xs text-white/30 mt-1">{hint}</p>}
+      {hint && !error && <p className="sq-hint">{hint}</p>}
     </div>
   )
 }

@@ -23,12 +23,11 @@ if (userPoolId && userPoolClientId) {
           },
         },
       })
-      console.log('[Amplify] AWS Cognito configured successfully.')
     } catch (err) {
-      console.error('[Amplify] Configuration failed:', err)
+      if (import.meta.env.DEV) console.error('[Amplify] Configuration failed:', err)
     }
   }).catch((err) => {
-    console.error('[Amplify] Dynamic import failed:', err)
+    if (import.meta.env.DEV) console.error('[Amplify] Dynamic import failed:', err)
   })
 }
 

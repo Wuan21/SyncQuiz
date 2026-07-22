@@ -1,30 +1,26 @@
 import { useEffect, useState, useRef } from 'react'
-import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Trophy, Clock, Zap } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { socket, connectSocket } from '../../store/useSocketStore'
 
-const COLORS = ['#e53935', '#1e88e5', '#43a047', '#f9a825']
+const COLORS = ['var(--danger)', 'var(--primary)', 'var(--success)', 'var(--warning)']
 const SHAPES = ['▲', '◆', '●', '■']
 const AVATARS = ['😀', '🐶', '🦊', '🐱', '🐸', '🦄', '🐙', '🦋', '🎃', '🚀']
 
 export default function PlayerGamePage() {
-  const { pin, gameId: gameIdParam } = useParams()
+  const { gameId: gameIdParam } = useParams()  // eslint-disable-line
   const [searchParams] = useSearchParams()
-  const location = useLocation()
   const navigate = useNavigate()
 
-  // Determine if we're in lobby mode
-  const isLobbyRoute = location.pathname.includes('/lobby')
-
-  // Get player session from sessionStorage
   const sessionRaw = sessionStorage.getItem('syncquiz-player-session')
   const playerSession = sessionRaw ? JSON.parse(sessionRaw) : null
   const nickname = playerSession?.nickname || searchParams.get('nickname') || 'Player'
   const myPlayerId = playerSession?.playerId
   const avatar = playerSession?.avatar || AVATARS[0]
 
-  const [phase, setPhase] = useState(isLobbyRoute ? 'lobby' : 'lobby')
+  const [phase, setPhase] = useState('lobby')
   const [question, setQuestion] = useState(null)
   const [timeLeft, setTimeLeft] = useState(0)
   const [selected, setSelected] = useState(null)
@@ -33,7 +29,6 @@ export default function PlayerGamePage() {
   const [correctOptions, setCorrectOptions] = useState([])
   const [removedOptions, setRemovedOptions] = useState([])
   const [powerUps, setPowerUps] = useState({ double_points: 1, fifty_fifty: 1, extra_time: 1 })
-  const [players, setPlayers] = useState([])
   const answerTs = useRef(null)
   const hasAttached = useRef(false)
 
@@ -48,7 +43,6 @@ export default function PlayerGamePage() {
       try {
         await connectSocket()
 
-        // Re-attach player to game via socket
         socket.emit(
           'player:attach-game',
           {
@@ -56,17 +50,9 @@ export default function PlayerGamePage() {
             playerId: playerSession.playerId,
             pin: playerSession.pin,
           },
-          (result) => {
-            if (result?.success) {
-              console.log('[PLAYER GAME] Re-attached to game')
-            } else {
-              console.warn('[PLAYER GAME] Re-attach failed:', result)
-            }
-          },
+          () => {}
         )
-      } catch (err) {
-        console.error('[PLAYER GAME] Socket connect error:', err)
-      }
+      } catch (_) {}
     }
 
     attachPlayer()
@@ -112,12 +98,8 @@ export default function PlayerGamePage() {
     }
 
     const handleHostLeft = () => {
-      alert('Host has left the game')
+      toast.error('Host đã rời khỏi game')
       navigate('/')
-    }
-
-    const handlePlayerList = (list) => {
-      setPlayers(list)
     }
 
     socket.on('game:started', handleStarted)
@@ -128,7 +110,6 @@ export default function PlayerGamePage() {
     socket.on('game:ended', handleEnded)
     socket.on('game:extra_time', handleExtraTime)
     socket.on('game:host_left', handleHostLeft)
-    socket.on('player-list:updated', handlePlayerList)
 
     return () => {
       socket.off('game:started', handleStarted)
@@ -139,7 +120,6 @@ export default function PlayerGamePage() {
       socket.off('game:ended', handleEnded)
       socket.off('game:extra_time', handleExtraTime)
       socket.off('game:host_left', handleHostLeft)
-      socket.off('player-list:updated', handlePlayerList)
     }
   }, [navigate])
 
@@ -166,13 +146,13 @@ export default function PlayerGamePage() {
   // ── Lobby ────────────────────────────────────────────────────────────────
   if (phase === 'lobby') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-violet-900 to-gray-950 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen sq-bg-gradient-primary flex flex-col items-center justify-center p-4">
         <div className="text-6xl mb-4 animate-bounce">{avatar}</div>
-        <h2 className="text-2xl font-bold mb-2">{nickname}</h2>
-        <p className="text-white/50">Waiting for the host to start...</p>
+        <h2 className="text-2xl font-bold mb-2 sq-text-white">{nickname}</h2>
+        <p className="sq-text-white-70">Waiting for the host to start...</p>
         <div className="flex gap-1 mt-6">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
+            <div key={i} className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
           ))}
         </div>
       </div>
@@ -183,25 +163,31 @@ export default function PlayerGamePage() {
   if (phase === 'ended') {
     const me = leaderboard.find((p) => p.playerId === myPlayerId || p.nickname === nickname)
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-4 text-center">
-        <Trophy size={64} className="text-yellow-400 mb-4" />
-        <h1 className="text-3xl font-bold mb-1">Game Over!</h1>
+      <div className="min-h-screen sq-bg-background flex flex-col items-center justify-center p-4 text-center">
+        <Trophy size={64} className="sq-text-warning mb-4" />
+        <h1 className="text-3xl font-bold mb-1 sq-text-foreground">Game Over!</h1>
         {me && (
-          <p className="text-white/60 mb-6">
-            You ranked <span className="text-yellow-400 font-bold">#{me.rank}</span> with{' '}
-            <span className="text-violet-400 font-bold">{me.totalScore.toLocaleString()} pts</span>
+          <p className="sq-text-muted mb-6">
+            You ranked <span className="sq-text-warning font-bold">#{me.rank}</span> with{' '}
+            <span className="sq-text-primary font-bold">{me.totalScore.toLocaleString()} pts</span>
           </p>
         )}
         <div className="w-full max-w-xs space-y-2 mb-8">
           {leaderboard.slice(0, 5).map((p) => (
-            <div key={p.nickname}
-              className={`flex items-center justify-between rounded-xl px-4 py-2 ${(p.playerId === myPlayerId || p.nickname === nickname) ? 'bg-violet-600/30 border border-violet-500/40' : 'bg-white/5'}`}>
-              <span>{p.rank}. {p.nickname}</span>
-              <span className="font-bold text-yellow-400">{p.totalScore.toLocaleString()}</span>
+            <div
+              key={p.nickname}
+              className={`flex items-center justify-between rounded-xl px-4 py-2 sq-border ${
+                (p.playerId === myPlayerId || p.nickname === nickname)
+                  ? 'sq-bg-primary-soft sq-border-primary'
+                  : 'sq-bg-surface'
+              }`}
+            >
+              <span className="sq-text-foreground">{p.rank}. {p.nickname}</span>
+              <span className="font-bold sq-text-warning">{p.totalScore.toLocaleString()}</span>
             </div>
           ))}
         </div>
-        <button onClick={() => navigate('/join')} className="btn-primary px-8">Play Again</button>
+        <button onClick={() => navigate('/join')} className="sq-btn sq-btn-primary px-8">Play Again</button>
       </div>
     )
   }
@@ -209,28 +195,34 @@ export default function PlayerGamePage() {
   // ── Result (after question) ───────────────────────────────────────────────
   if (phase === 'result' && question) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen sq-bg-background flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-sm text-center">
-          <p className="text-white/50 text-sm mb-4">Correct answer{correctOptions.length > 1 ? 's' : ''}:</p>
+          <p className="sq-text-muted text-sm mb-4">Correct answer{correctOptions.length > 1 ? 's' : ''}:</p>
           <div className="space-y-2 mb-6">
             {question.options.map((opt, i) => (
-              <div key={i} className={`rounded-xl px-4 py-3 font-semibold transition-all ${
-                correctOptions.includes(i) ? 'ring-2 ring-green-400' : 'opacity-30'
-              }`} style={{ background: COLORS[i] }}>
+              <div
+                key={i}
+                className={`rounded-xl px-4 py-3 font-semibold transition-all sq-text-foreground sq-border ${
+                  correctOptions.includes(i) ? 'ring-2 sq-border-success' : 'opacity-30'
+                }`}
+                style={{ background: COLORS[i] }}
+              >
                 {SHAPES[i]} {opt.text}
               </div>
             ))}
           </div>
           {feedback && (
-            <div className={`card text-center ${feedback.isCorrect ? 'border-green-500/40' : 'border-red-500/40'}`}>
+            <div className={`sq-card text-center ${
+              feedback.isCorrect ? 'sq-border-success sq-bg-success-soft' : 'sq-border-danger sq-bg-danger-soft'
+            }`}>
               <div className="text-4xl mb-1">{feedback.isCorrect ? '✅' : '❌'}</div>
-              <p className="font-bold text-lg">{feedback.isCorrect ? 'Correct!' : 'Wrong'}</p>
+              <p className="font-bold text-lg sq-text-foreground">{feedback.isCorrect ? 'Correct!' : 'Wrong'}</p>
               {feedback.isCorrect && (
-                <p className="text-violet-400 text-sm">+{feedback.pointsEarned} pts · Total: {feedback.totalScore.toLocaleString()}</p>
+                <p className="sq-text-primary text-sm">+{feedback.pointsEarned} pts · Total: {feedback.totalScore.toLocaleString()}</p>
               )}
             </div>
           )}
-          <p className="text-white/30 text-xs mt-4">Next question coming up...</p>
+          <p className="sq-text-subtle text-xs mt-4">Next question coming up...</p>
         </div>
       </div>
     )
@@ -238,34 +230,36 @@ export default function PlayerGamePage() {
 
   // ── Question ──────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col p-4">
+    <div className="min-h-screen sq-bg-background flex flex-col p-4">
       {/* Timer */}
       <div className="flex items-center justify-between mb-4">
-        <span className="text-white/40 text-sm">Q{(question?.index ?? 0) + 1}/{question?.total}</span>
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono font-bold text-xl ${
-          timeLeft <= 5 ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-violet-400'
+        <span className="sq-text-subtle text-sm">Q{(question?.index ?? 0) + 1}/{question?.total}</span>
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono font-bold text-xl sq-border ${
+          timeLeft <= 5 ? 'sq-bg-danger-soft sq-text-danger' : 'sq-bg-surface sq-text-primary'
         }`}>
           <Clock size={16} />
           {timeLeft}
         </div>
-        <div className="flex items-center gap-1 text-sm text-white/40">
-          <Zap size={14} className="text-violet-400" />
+        <div className="flex items-center gap-1 text-sm sq-text-subtle">
+          <Zap size={14} className="sq-text-primary" />
           {feedback?.totalScore?.toLocaleString() ?? '0'}
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="w-full bg-white/10 rounded-full h-1.5 mb-6">
-        <div className="bg-violet-500 h-1.5 rounded-full transition-all duration-1000"
-          style={{ width: `${(timeLeft / (question?.timeLimit || 30)) * 100}%` }} />
+      <div className="w-full sq-bg-surface rounded-full h-1.5 mb-6 overflow-hidden sq-border">
+        <div
+          className="h-1.5 rounded-full transition-all duration-1000 sq-bg-gradient-primary"
+          style={{ width: `${(timeLeft / (question?.timeLimit || 30)) * 100}%` }}
+        />
       </div>
 
       {/* Question text */}
       <div className="text-center mb-6 flex-1 flex flex-col items-center justify-center">
         {question?.imageUrl && (
-          <img src={question.imageUrl} alt="question" className="rounded-xl max-h-40 object-cover mb-4" />
+          <img src={question.imageUrl} alt="question" className="rounded-xl max-h-40 object-cover mb-4 sq-border" />
         )}
-        <h2 className="text-xl sm:text-2xl font-bold leading-snug max-w-xl">{question?.content}</h2>
+        <h2 className="text-xl sm:text-2xl font-bold leading-snug max-w-xl sq-text-foreground">{question?.content}</h2>
       </div>
 
       {/* Answer buttons */}
@@ -281,7 +275,7 @@ export default function PlayerGamePage() {
                 transition={{ delay: i * 0.08 }}
                 onClick={() => !removed && answer(i)}
                 disabled={selected !== null || removed}
-                className={`rounded-2xl p-4 text-white font-bold text-center text-lg transition-all active:scale-95 ${
+                className={`rounded-2xl p-4 sq-text-foreground font-bold text-center text-lg transition-all active:scale-95 sq-border ${
                   selected === i ? 'ring-4 ring-white scale-95'
                   : selected !== null || removed ? 'opacity-40' : 'hover:scale-105'
                 }`}
@@ -301,15 +295,15 @@ export default function PlayerGamePage() {
         <div className="flex justify-center gap-3 mt-4">
           <PowerUpBtn
             label="2×" title="Double Points" active={powerUps.double_points > 0}
-            onClick={() => triggerPowerUp('double_points')} color="bg-yellow-500"
+            onClick={() => triggerPowerUp('double_points')} color="sq-bg-warning"
           />
           <PowerUpBtn
             label="50/50" title="Remove 2 wrong answers" active={powerUps.fifty_fifty > 0}
-            onClick={() => triggerPowerUp('fifty_fifty')} color="bg-blue-500"
+            onClick={() => triggerPowerUp('fifty_fifty')} color="sq-bg-primary"
           />
           <PowerUpBtn
             label="+15s" title="Add 15 seconds" active={powerUps.extra_time > 0}
-            onClick={() => triggerPowerUp('extra_time')} color="bg-green-500"
+            onClick={() => triggerPowerUp('extra_time')} color="sq-bg-success"
           />
         </div>
       )}
@@ -323,8 +317,8 @@ function PowerUpBtn({ label, title, active, onClick, color }) {
       onClick={onClick}
       disabled={!active}
       title={title}
-      className={`w-14 h-14 rounded-full font-bold text-white text-sm transition-all active:scale-90 ${
-        active ? `${color} shadow-lg hover:scale-110` : 'bg-white/10 opacity-40 cursor-not-allowed'
+      className={`w-14 h-14 rounded-full font-bold sq-text-foreground text-sm transition-all active:scale-90 ${
+        active ? `${color} shadow-lg hover:scale-110 sq-border` : 'sq-bg-surface opacity-40 cursor-not-allowed sq-border'
       }`}
     >
       {label}

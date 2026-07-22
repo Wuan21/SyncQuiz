@@ -1,15 +1,15 @@
 /**
  * SyncQuiz Card Component
- * Variants: default, interactive (hover effect)
+ * Variants: default, interactive (hover + focus effect)
  */
-export function Card({ children, className = '', interactive = false, ...props }) {
+export function Card({ children, className = '', interactive = false, as: Tag = 'div', ...props }) {
   return (
-    <div
-      className={`${interactive ? 'sq-card cursor-pointer hover:border-white/20' : 'sq-card'} ${className}`}
+    <Tag
+      className={`${interactive ? 'sq-card sq-card-interactive' : 'sq-card'} ${className}`}
       {...props}
     >
       {children}
-    </div>
+    </Tag>
   )
 }
 
@@ -23,7 +23,7 @@ export function CardHeader({ children, className = '' }) {
 
 export function CardTitle({ children, className = '' }) {
   return (
-    <h3 className={`text-base font-semibold ${className}`}>
+    <h3 className={`text-base font-semibold sq-text-foreground ${className}`}>
       {children}
     </h3>
   )

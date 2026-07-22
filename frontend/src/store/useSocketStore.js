@@ -35,7 +35,6 @@ let _connectionListeners = []
 // Update auth token before each connect
 socket.on('connect', () => {
   _isConnected = true
-  console.log('[SOCKET] Connected. ID:', socket.id)
   // Notify all waiting listeners
   _connectionListeners.forEach((resolve) => resolve(undefined))
   _connectionListeners = []
@@ -43,12 +42,12 @@ socket.on('connect', () => {
 
 socket.on('disconnect', (reason) => {
   _isConnected = false
-  console.log('[SOCKET] Disconnected:', reason)
+  if (import.meta.env.DEV) console.log('[SOCKET] Disconnected:', reason)
 })
 
 socket.on('connect_error', (err) => {
   _isConnected = false
-  console.error('[SOCKET] Connection error:', err.message)
+  if (import.meta.env.DEV) console.error('[SOCKET] Connection error:', err.message)
 })
 
 /* ── Connect helper (returns a Promise) ───────────────────────────────── */
@@ -136,7 +135,6 @@ let _reconnecting = false
 socket.io.on('reconnect', () => {
   if (_reconnecting) return
   _reconnecting = true
-  console.log('[SOCKET] Reconnected, re-attaching session...')
 
   const raw = sessionStorage.getItem('syncquiz-player-session')
   if (raw) {

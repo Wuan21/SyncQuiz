@@ -4,14 +4,21 @@ import { Trophy, Users, BookOpen, Zap, TrendingUp } from 'lucide-react'
 import { getAnalytics } from '../../api/upload.api'
 import { getMyAchievements } from '../../api/advanced.api'
 
-// Recharts components are loaded dynamically to reduce initial bundle by ~100KB
+const ICON_CLASS = 'sq-text-primary-light'
+
+const STAT_ICONS = {
+  totalGames: Zap,
+  quizCount: BookOpen,
+  avgPlayers: Users,
+  badges: Trophy,
+}
+
+// Dynamic import recharts — saves ~100KB from initial bundle
 export default function AnalyticsPage() {
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- Charts loaded async via useEffect
   const [Charts, setCharts] = useState(null)
   const { data: analytics } = useQuery({ queryKey: ['analytics'], queryFn: getAnalytics })
   const { data: achievements } = useQuery({ queryKey: ['achievements'], queryFn: getMyAchievements })
 
-  // Dynamic import recharts — saves ~100KB from initial bundle
   useEffect(() => {
     Promise.all([
       import('recharts'),
@@ -45,26 +52,32 @@ export default function AnalyticsPage() {
   ]
 
   const statCards = [
-    { label: 'Total Games', value: analytics?.totalSessions, icon: Zap, color: 'text-violet-400' },
-    { label: 'Quizzes', value: analytics?.quizCount, icon: BookOpen, color: 'text-pink-400' },
-    { label: 'Avg Players', value: analytics?.avgPlayers, icon: Users, color: 'text-blue-400' },
-    { label: 'Badges', value: `${earnedBadges.length}/${achievements?.length || 0}`, icon: Trophy, color: 'text-yellow-400' },
+    { label: 'Total Games', value: analytics?.totalSessions, icon: STAT_ICONS.totalGames },
+    { label: 'Quizzes', value: analytics?.quizCount, icon: STAT_ICONS.quizCount },
+    { label: 'Avg Players', value: analytics?.avgPlayers, icon: STAT_ICONS.avgPlayers },
+    { label: 'Badges', value: `${earnedBadges.length}/${achievements?.length || 0}`, icon: STAT_ICONS.badges },
   ]
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8 flex items-center gap-3">
-        <TrendingUp className="text-violet-400" /> Analytics
-      </h1>
+    <div className="sq-page">
+      <div className="mb-8 flex items-center gap-3">
+        <div className="w-11 h-11 rounded-xl sq-bg-primary-soft flex items-center justify-center">
+          <TrendingUp size={22} className={ICON_CLASS} />
+        </div>
+        <div>
+          <h1 className="sq-page-title">Analytics</h1>
+          <p className="sq-page-subtitle">Thống kê hoạt động của bạn</p>
+        </div>
+      </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {statCards.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="card flex items-center gap-3">
-            <Icon size={24} className={color} />
+        {statCards.map(({ label, value, icon: Icon }) => (
+          <div key={label} className="sq-card flex items-center gap-3">
+            <Icon size={24} className={ICON_CLASS} />
             <div>
-              <p className="text-white/50 text-xs">{label}</p>
-              <p className="text-2xl font-bold">{value ?? '—'}</p>
+              <p className="sq-text-muted text-xs">{label}</p>
+              <p className="text-2xl font-bold sq-text-foreground">{value ?? '—'}</p>
             </div>
           </div>
         ))}
@@ -72,73 +85,87 @@ export default function AnalyticsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Recent games bar chart */}
-        <div className="card lg:col-span-2">
-          <h2 className="font-semibold mb-4">Players per Game</h2>
+        <div className="sq-card lg:col-span-2">
+          <h2 className="sq-section-title mb-4">Players per Game</h2>
           {sessionChart.length > 0 && Charts ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={sessionChart}>
-                <XAxis dataKey="name" stroke="#ffffff30" tick={{ fill: '#ffffff60', fontSize: 11 }} />
-                <YAxis stroke="#ffffff30" tick={{ fill: '#ffffff60', fontSize: 11 }} />
-                <Tooltip contentStyle={{ background: '#1e1b4b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff' }} />
-                <Bar dataKey="players" fill="#6366f1" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <Charts.ResponsiveContainer width="100%" height={200}>
+              <Charts.BarChart data={sessionChart}>
+                <Charts.XAxis dataKey="name" stroke="var(--text-subtle)" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
+                <Charts.YAxis stroke="var(--text-subtle)" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
+                <Charts.Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} />
+                <Charts.Bar dataKey="players" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+              </Charts.BarChart>
+            </Charts.ResponsiveContainer>
           ) : (
-            <div className="h-48 flex items-center justify-center text-white/30">
+            <div className="h-48 flex items-center justify-center sq-text-subtle">
               {sessionChart.length === 0 ? 'No game data yet' : 'Loading charts...'}
             </div>
           )}
         </div>
 
         {/* Badge pie */}
-        <div className="card">
-          <h2 className="font-semibold mb-4">Badges Progress</h2>
+        <div className="sq-card">
+          <h2 className="sq-section-title mb-4">Badges Progress</h2>
           <div className="flex flex-col items-center">
             {Charts ? (
-              <ResponsiveContainer width="100%" height={150}>
-                <PieChart>
-                  <Pie data={badgePieData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} dataKey="value">
-                    {badgePieData.map((_, i) => (
-                      <Cell key={i} fill={i === 0 ? '#6366f1' : '#ffffff15'} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: '#1e1b4b', border: 'none', borderRadius: 8, color: '#fff' }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <Charts.ResponsiveContainer width="100%" height={150}>
+                <Charts.PieChart>
+                  <Charts.Pie
+                    data={badgePieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={65}
+                    dataKey="value"
+                  >
+                    <Charts.Cell fill="var(--success)" />
+                    <Charts.Cell fill="var(--bg-surface)" />
+                  </Charts.Pie>
+                </Charts.PieChart>
+              </Charts.ResponsiveContainer>
             ) : (
-              <div className="h-[150px] flex items-center justify-center text-white/30">Loading...</div>
+              <div className="h-[150px] flex items-center justify-center sq-text-subtle text-sm">
+                Loading chart...
+              </div>
             )}
-            <p className="text-3xl font-bold text-violet-400">{earnedBadges.length}</p>
-            <p className="text-white/40 text-sm">of {achievements?.length || 0} badges</p>
+            <div className="flex gap-4 mt-3 text-xs">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm sq-bg-success" />
+                <span className="sq-text-muted">Earned ({earnedBadges.length})</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm sq-bg-surface sq-border" />
+                <span className="sq-text-muted">Remaining</span>
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Badges */}
-      <div className="card">
-        <h2 className="font-semibold mb-5">🏆 Achievements</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {achievements?.map((badge) => (
-            <div
-              key={badge.id}
-              className={`flex flex-col items-center text-center p-4 rounded-xl transition-all ${
-                badge.earned
-                  ? 'bg-white/10 border border-white/20'
-                  : 'bg-white/3 border border-white/5 opacity-40 grayscale'
-              }`}
-            >
-              <span className="text-3xl mb-2">{badge.icon}</span>
-              <p className="font-semibold text-sm">{badge.name}</p>
-              <p className="text-white/40 text-xs mt-1">{badge.desc}</p>
-              {badge.earned && badge.earnedAt && (
-                <p className="text-violet-400 text-xs mt-2">
-                  {new Date(badge.earnedAt).toLocaleDateString('vi')}
-                </p>
-              )}
-            </div>
-          ))}
+      {/* Achievements list */}
+      {achievements?.length > 0 && (
+        <div className="sq-card">
+          <h2 className="sq-section-title mb-4">Achievements</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {achievements.map((a) => (
+              <div
+                key={a.id || a.name}
+                className={`sq-card flex items-center gap-3 sq-border ${a.earned ? 'sq-border-success sq-bg-success-soft' : 'opacity-60'}`}
+              >
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                  a.earned ? 'sq-bg-success-soft sq-text-success' : 'sq-bg-surface sq-text-subtle'
+                }`}>
+                  <Trophy size={22} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm sq-text-foreground">{a.name}</p>
+                  <p className="text-xs sq-text-muted truncate">{a.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

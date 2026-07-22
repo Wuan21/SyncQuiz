@@ -119,22 +119,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen sq-bg-background flex items-center justify-center p-4">
       {/* Background decoration */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute -top-32 -right-32 w-[28rem] h-[28rem] bg-[hsl(var(--color-primary))]/8 rounded-full blur-3xl" />
-        <div className="absolute -bottom-32 -left-32 w-[28rem] h-[28rem] bg-[hsl(var(--color-accent))]/6 rounded-full blur-3xl" />
+        <div className="absolute -top-32 -right-32 w-[28rem] h-[28rem] sq-bg-primary-soft rounded-full blur-3xl opacity-60" />
+        <div className="absolute -bottom-32 -left-32 w-[28rem] h-[28rem] sq-bg-accent-soft rounded-full blur-3xl opacity-60" />
       </div>
 
       <div className="w-full max-w-sm relative">
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8 sq-animate-fade-in">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[hsl(var(--color-primary))] to-[hsl(var(--color-accent))] flex items-center justify-center shadow-xl mb-4">
-            <Zap size={26} className="text-white" />
+          <div className="w-14 h-14 rounded-2xl sq-bg-gradient-primary flex items-center justify-center shadow-xl mb-4">
+            <Zap size={26} className="sq-text-white" />
           </div>
           <h1 className="text-2xl font-bold sq-text-gradient">SyncQuiz</h1>
-          <p className="text-muted-foreground text-sm mt-1">{t('auth.loginHeader')}</p>
+          <p className="sq-text-muted text-sm mt-1">{t('auth.loginHeader')}</p>
         </div>
 
         <div className="sq-card sq-animate-fade-up">
@@ -168,7 +168,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 sq-text-muted hover:sq-text-foreground transition-colors p-1"
                   aria-label={showPw ? 'Hide password' : 'Show password'}
                   disabled={isLoading}
                 >
@@ -181,7 +181,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="sq-btn sq-btn-primary w-full py-3 mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="sq-btn sq-btn-primary w-full py-3 mt-2"
             >
               {isLoading ? (
                 <>
@@ -197,9 +197,9 @@ export default function LoginPage() {
 
           <hr className="sq-divider my-5" />
 
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-sm sq-text-muted">
             {t('auth.noAccount')}{' '}
-            <Link to="/register" className="text-primary font-semibold hover:text-[hsl(var(--color-primary-light))] transition-colors">
+            <Link to="/register" className="sq-text-primary font-semibold hover:sq-text-primary-light transition-colors">
               {t('auth.signUpFree')}
             </Link>
           </p>

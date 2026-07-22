@@ -34,7 +34,7 @@ function setAICache(key, value) {
     }
     localStorage.setItem(AI_CACHE_KEY, JSON.stringify(cache))
   } catch (e) {
-    console.warn('Failed to save AI cache:', e)
+    if (import.meta.env.DEV) console.warn('Failed to save AI cache:', e)
   }
 }
 
@@ -43,7 +43,6 @@ export const generateAIQuiz = async (data) => {
   const cache = getAICache()
 
   if (cache[cacheKey]) {
-    console.log('AI Quiz returned from cache')
     return cache[cacheKey].data
   }
 

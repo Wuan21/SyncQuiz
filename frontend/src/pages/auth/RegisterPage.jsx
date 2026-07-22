@@ -85,20 +85,20 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+    <div className="min-h-screen sq-bg-background flex items-center justify-center p-4">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-violet-600/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-pink-600/10 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -right-40 w-96 h-96 sq-bg-primary-soft rounded-full blur-3xl opacity-60" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 sq-bg-accent-soft rounded-full blur-3xl opacity-60" />
       </div>
 
       <div className="w-full max-w-sm relative">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8 sq-animate-fade-in">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center shadow-xl shadow-violet-500/25 mb-4">
-            <Zap size={26} className="text-white" />
+          <div className="w-14 h-14 rounded-2xl sq-bg-gradient-primary flex items-center justify-center shadow-xl mb-4">
+            <Zap size={26} className="sq-text-white" />
           </div>
-          <h1 className="text-2xl font-bold sq-gradient">SyncQuiz</h1>
-          <p className="text-white/40 text-sm mt-1">
+          <h1 className="text-2xl font-bold sq-text-gradient">SyncQuiz</h1>
+          <p className="sq-text-muted text-sm mt-1">
             {step === 'signup' ? t('auth.signupHeader') : 'Verify Account'}
           </p>
         </div>
@@ -172,7 +172,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={() => setShowPw(!showPw)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 sq-text-muted hover:sq-text-foreground transition-colors"
                       aria-label={showPw ? 'Hide password' : 'Show password'}
                     >
                       {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -198,7 +198,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={() => setShowConfirmPw(!showConfirmPw)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 sq-text-muted hover:sq-text-foreground transition-colors"
                       aria-label={showConfirmPw ? 'Hide password' : 'Show password'}
                     >
                       {showConfirmPw ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -207,10 +207,10 @@ export default function RegisterPage() {
                   {errors.confirm && <p className="sq-error">{errors.confirm.message}</p>}
                 </div>
 
-                <button type="submit" disabled={isLoading} className="sq-btn sq-btn-primary w-full py-3 mt-2 disabled:opacity-60 disabled:cursor-not-allowed">
+                <button type="submit" disabled={isLoading} className="sq-btn sq-btn-primary w-full py-3 mt-2">
                   {isLoading ? (
                     <>
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
@@ -224,9 +224,9 @@ export default function RegisterPage() {
 
               <div className="sq-divider my-5" />
 
-              <p className="text-center text-sm text-white/40">
+              <p className="text-center text-sm sq-text-muted">
                 {t('auth.alreadyHaveAccount')}{' '}
-                <Link to="/login" className="text-violet-400 hover:text-violet-300 font-medium transition-colors">
+                <Link to="/login" className="sq-text-primary font-medium hover:sq-text-primary-light transition-colors">
                   {t('auth.logInLink')}
                 </Link>
               </p>
@@ -234,11 +234,11 @@ export default function RegisterPage() {
           ) : (
             <>
               <div className="text-center mb-6">
-                <div className="w-12 h-12 rounded-full bg-violet-500/15 flex items-center justify-center mx-auto mb-3">
+                <div className="w-12 h-12 rounded-full sq-bg-primary-soft flex items-center justify-center mx-auto mb-3">
                   <span className="text-xl">📧</span>
                 </div>
-                <p className="text-sm text-white/50">
-                  Nhập mã xác minh đã gửi đến <strong className="text-white/70">{signUpEmail}</strong>
+                <p className="text-sm sq-text-muted">
+                  Nhập mã xác minh đã gửi đến <strong className="sq-text-foreground">{signUpEmail}</strong>
                 </p>
               </div>
 
@@ -258,7 +258,7 @@ export default function RegisterPage() {
                 <button type="submit" disabled={isConfirming} className="sq-btn sq-btn-primary w-full py-3 mt-2">
                   {isConfirming ? (
                     <>
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
@@ -272,7 +272,7 @@ export default function RegisterPage() {
 
               <button
                 onClick={() => setStep('signup')}
-                className="text-center text-sm text-violet-400 hover:text-violet-300 w-full mt-4 block transition-colors"
+                className="text-center text-sm sq-text-primary hover:sq-text-primary-light w-full mt-4 block transition-colors"
               >
                 ← Quay lại đăng ký
               </button>

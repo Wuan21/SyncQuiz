@@ -15,10 +15,21 @@ import {
   getAdminQuizzes, deleteAdminQuiz, restoreAdminQuiz,
   getAdminSessions, getAdminHomework, endAdminSession,
 } from '../../api/admin.api'
-import { SkeletonStat } from '../../components/ui/Skeleton'
 import { ConfirmModal } from '../../components/ui/Modal'
 
-function StatCard({ icon: Icon, label, value, colorClass }) {
+const STAT_COLOR_CLASSES = {
+  violet:  'sq-bg-primary-soft sq-text-primary-light',
+  green:   'sq-bg-success-soft sq-text-success',
+  red:     'sq-bg-danger-soft sq-text-danger',
+  pink:    'sq-bg-accent-soft sq-text-accent',
+  emerald: 'sq-bg-success-soft sq-text-success',
+  orange:  'sq-bg-warning-soft sq-text-warning',
+  blue:    'sq-bg-primary-soft sq-text-primary-light',
+  indigo:  'sq-bg-primary-soft sq-text-primary-light',
+  cyan:    'sq-bg-primary-soft sq-text-primary-light',
+}
+
+function StatCard({ icon: Icon, label, value, colorKey = 'violet' }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -26,7 +37,7 @@ function StatCard({ icon: Icon, label, value, colorClass }) {
       transition={{ duration: 0.3 }}
       className="sq-stat"
     >
-      <div className={`sq-stat-icon ${colorClass}`}>
+      <div className={`sq-stat-icon ${STAT_COLOR_CLASSES[colorKey] || STAT_COLOR_CLASSES.violet}`}>
         <Icon size={18} />
       </div>
       <div>
@@ -49,7 +60,7 @@ function Pagination({ page, totalPages, onPage }) {
       >
         <ChevronLeft size={16} />
       </button>
-      <span className="text-sm text-white/40 px-2">
+      <span className="text-sm sq-text-muted px-2">
         Trang {page} / {totalPages}
       </span>
       <button
@@ -99,7 +110,7 @@ function UsersTab() {
     <div>
       <div className="flex gap-3 mb-5 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35 pointer-events-none" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 sq-text-subtle pointer-events-none" />
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             placeholder={t('admin.searchPlaceholder')} className="sq-input pl-9" />
         </div>
@@ -113,10 +124,10 @@ function UsersTab() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12 text-white/40">{t('common.loading')}</div>
+        <div className="text-center py-12 sq-text-muted">{t('common.loading')}</div>
       ) : (
         <>
-          <div className="sq-card p-0 overflow-hidden">
+          <div className="sq-card sq-card-flush">
             <div className="sq-table-wrap">
               <table className="sq-table">
                 <thead>
@@ -130,13 +141,13 @@ function UsersTab() {
                 </thead>
                 <tbody>
                   {data?.data?.length === 0 ? (
-                    <tr><td colSpan={5} className="p-8 text-center text-white/25">Không có người dùng nào</td></tr>
+                    <tr><td colSpan={5} className="p-8 text-center sq-text-subtle">Không có người dùng nào</td></tr>
                   ) : (
                     data?.data?.map((user) => (
                       <tr key={user.id}>
                         <td>
-                          <p className="font-medium text-sm">{user.fullName}</p>
-                          <p className="text-white/35 text-xs">{user.email}</p>
+                          <p className="font-medium text-sm sq-text-foreground">{user.fullName}</p>
+                          <p className="sq-text-subtle text-xs">{user.email}</p>
                         </td>
                         <td>
                           <select
@@ -154,21 +165,21 @@ function UsersTab() {
                             {user.isActive ? t('admin.active') : t('admin.inactive')}
                           </span>
                         </td>
-                        <td className="text-white/35 text-xs">
+                        <td className="sq-text-subtle text-xs">
                           {user.createdAt ? new Date(user.createdAt).toLocaleDateString('vi') : '—'}
                         </td>
                         <td className="text-right">
                           <div className="flex justify-end gap-1">
                             <button
                               onClick={() => statusMut.mutate({ id: user.id, isActive: !user.isActive })}
-                              className="sq-btn sq-btn-ghost sq-btn-sm px-2 text-white/40 hover:text-white"
+                              className="sq-btn sq-btn-ghost sq-btn-sm px-2 sq-text-muted hover:sq-text-foreground"
                               title={user.isActive ? t('admin.deactivate') : t('admin.activate')}
                             >
                               {user.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
                             </button>
                             <button
                               onClick={() => setDeleteTarget({ id: user.id, name: user.fullName })}
-                              className="sq-btn sq-btn-ghost sq-btn-sm px-2 text-red-400/50 hover:text-red-400 hover:bg-red-500/10"
+                              className="sq-btn sq-btn-ghost sq-btn-sm px-2 sq-text-danger opacity-70 hover:opacity-100 hover:sq-bg-danger-soft"
                               title={t('common.delete')}
                             >
                               <Trash2 size={14} />
@@ -229,7 +240,7 @@ function QuizzesTab() {
     <div>
       <div className="flex gap-3 mb-5 flex-wrap items-center">
         <div className="relative flex-1 min-w-[200px]">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35 pointer-events-none" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 sq-text-subtle pointer-events-none" />
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             placeholder={t('admin.searchQuizzes')} className="sq-input pl-9" />
         </div>
@@ -239,7 +250,7 @@ function QuizzesTab() {
           <option value="public">{t('admin.public')}</option>
           <option value="private">{t('admin.private')}</option>
         </select>
-        <label className="flex items-center gap-2 text-sm text-white/50 cursor-pointer whitespace-nowrap">
+        <label className="flex items-center gap-2 text-sm sq-text-muted cursor-pointer whitespace-nowrap">
           <input type="checkbox" checked={showDeleted} onChange={(e) => { setShowDeleted(e.target.checked); setPage(1) }}
             className="accent-violet-500 w-4 h-4" />
           Đã xóa
@@ -247,10 +258,10 @@ function QuizzesTab() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12 text-white/40">{t('common.loading')}</div>
+        <div className="text-center py-12 sq-text-muted">{t('common.loading')}</div>
       ) : (
         <>
-          <div className="sq-card p-0 overflow-hidden">
+          <div className="sq-card sq-card-flush">
             <div className="sq-table-wrap">
               <table className="sq-table">
                 <thead>
@@ -265,18 +276,18 @@ function QuizzesTab() {
                 </thead>
                 <tbody>
                   {data?.data?.length === 0 ? (
-                    <tr><td colSpan={6} className="p-8 text-center text-white/25">Không có quiz nào</td></tr>
+                    <tr><td colSpan={6} className="p-8 text-center sq-text-subtle">Không có quiz nào</td></tr>
                   ) : (
                     data?.data?.map((quiz) => (
                       <tr key={quiz.id}>
                         <td>
-                          <p className={`font-medium text-sm truncate max-w-[200px] ${quiz.isDeleted ? 'text-red-400/50' : ''}`}>
+                          <p className={`font-medium text-sm truncate max-w-[200px] sq-text-foreground ${quiz.isDeleted ? 'sq-text-danger opacity-60' : ''}`}>
                             {quiz.title}
                           </p>
                         </td>
                         <td>
-                          <p className="text-white/45 text-xs">{quiz.ownerName || '—'}</p>
-                          <p className="text-white/25 text-xs truncate max-w-[140px]">{quiz.ownerEmail || ''}</p>
+                          <p className="sq-text-muted text-xs">{quiz.ownerName || '—'}</p>
+                          <p className="sq-text-subtle text-xs truncate max-w-[140px]">{quiz.ownerEmail || ''}</p>
                         </td>
                         <td>
                           <span className={`sq-badge ${quiz.visibility === 'public' ? 'sq-badge-success' : 'sq-badge-muted'}`}>
@@ -284,21 +295,21 @@ function QuizzesTab() {
                           </span>
                           {quiz.isDeleted && <span className="sq-badge sq-badge-danger ml-1">Đã xóa</span>}
                         </td>
-                        <td className="text-white/45">{quiz.totalPlays}</td>
-                        <td className="text-white/35 text-xs">
+                        <td className="sq-text-muted">{quiz.totalPlays}</td>
+                        <td className="sq-text-subtle text-xs">
                           {quiz.createdAt ? new Date(quiz.createdAt).toLocaleDateString('vi') : '—'}
                         </td>
                         <td className="text-right">
                           <div className="flex justify-end gap-1">
                             {quiz.isDeleted ? (
                               <button onClick={() => restoreMut.mutate(quiz.id)}
-                                className="sq-btn sq-btn-ghost sq-btn-sm px-2 text-green-400/50 hover:text-green-400"
+                                className="sq-btn sq-btn-ghost sq-btn-sm px-2 sq-text-success opacity-70 hover:opacity-100"
                                 title={t('admin.restore')}>
                                 <RotateCcw size={14} />
                               </button>
                             ) : (
                               <button onClick={() => setDeleteTarget({ id: quiz.id, title: quiz.title })}
-                                className="sq-btn sq-btn-ghost sq-btn-sm px-2 text-red-400/50 hover:text-red-400 hover:bg-red-500/10"
+                                className="sq-btn sq-btn-ghost sq-btn-sm px-2 sq-text-danger opacity-70 hover:opacity-100 hover:sq-bg-danger-soft"
                                 title={t('common.delete')}>
                                 <Trash2 size={14} />
                               </button>
@@ -356,10 +367,10 @@ function SessionsTab() {
   return (
     <div>
       {isLoading ? (
-        <div className="text-center py-12 text-white/40">{t('common.loading')}</div>
+        <div className="text-center py-12 sq-text-muted">{t('common.loading')}</div>
       ) : (
         <>
-          <div className="sq-card p-0 overflow-hidden">
+          <div className="sq-card sq-card-flush">
             <div className="sq-table-wrap">
               <table className="sq-table">
                 <thead>
@@ -374,19 +385,19 @@ function SessionsTab() {
                 </thead>
                 <tbody>
                   {data?.data?.length === 0 ? (
-                    <tr><td colSpan={6} className="p-8 text-center text-white/25">Không có session nào</td></tr>
+                    <tr><td colSpan={6} className="p-8 text-center sq-text-subtle">Không có session nào</td></tr>
                   ) : (
                     data?.data?.map((s) => (
                       <tr key={s.id}>
-                        <td className="font-mono font-bold">{s.pin}</td>
+                        <td className="font-mono font-bold sq-text-foreground">{s.pin}</td>
                         <td><span className={`sq-badge ${statusVariant(s.status)}`}>{s.status}</span></td>
-                        <td className="text-white/45">{s.playerCount}</td>
-                        <td className="text-white/35 text-xs">{s.hostName || s.hostEmail || '—'}</td>
-                        <td className="text-white/35 text-xs">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('vi') : '—'}</td>
+                        <td className="sq-text-muted">{s.playerCount}</td>
+                        <td className="sq-text-subtle text-xs">{s.hostName || s.hostEmail || '—'}</td>
+                        <td className="sq-text-subtle text-xs">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('vi') : '—'}</td>
                         <td className="text-right">
                           {(s.status === 'waiting' || s.status === 'active' || s.status === 'paused') && (
                             <button onClick={() => setEndTarget({ id: s.id, pin: s.pin })}
-                              className="sq-btn sq-btn-ghost sq-btn-sm px-2 text-red-400/50 hover:text-red-400 hover:bg-red-500/10"
+                              className="sq-btn sq-btn-ghost sq-btn-sm px-2 sq-text-danger opacity-70 hover:opacity-100 hover:sq-bg-danger-soft"
                               title={t('admin.endSession')}>
                               <Trash2 size={14} />
                             </button>
@@ -428,10 +439,10 @@ function HomeworkTab() {
   return (
     <div>
       {isLoading ? (
-        <div className="text-center py-12 text-white/40">{t('common.loading')}</div>
+        <div className="text-center py-12 sq-text-muted">{t('common.loading')}</div>
       ) : (
         <>
-          <div className="sq-card p-0 overflow-hidden">
+          <div className="sq-card sq-card-flush">
             <div className="sq-table-wrap">
               <table className="sq-table">
                 <thead>
@@ -445,15 +456,15 @@ function HomeworkTab() {
                 </thead>
                 <tbody>
                   {data?.data?.length === 0 ? (
-                    <tr><td colSpan={5} className="p-8 text-center text-white/25">Không có bài tập nào</td></tr>
+                    <tr><td colSpan={5} className="p-8 text-center sq-text-subtle">Không có bài tập nào</td></tr>
                   ) : (
                     data?.data?.map((h) => (
                       <tr key={h.id}>
-                        <td className="font-medium text-sm truncate max-w-[200px]">{h.title}</td>
-                        <td className="text-white/35 text-xs">{h.teacherName || h.teacherEmail || '—'}</td>
+                        <td className="font-medium text-sm truncate max-w-[200px] sq-text-foreground">{h.title}</td>
+                        <td className="sq-text-subtle text-xs">{h.teacherName || h.teacherEmail || '—'}</td>
                         <td><span className={`sq-badge ${h.status === 'closed' ? 'sq-badge-danger' : 'sq-badge-success'}`}>{h.status}</span></td>
-                        <td className="text-white/35 text-xs">{h.dueDate ? new Date(h.dueDate).toLocaleDateString('vi') : '—'}</td>
-                        <td className="text-white/35 text-xs">{h.createdAt ? new Date(h.createdAt).toLocaleDateString('vi') : '—'}</td>
+                        <td className="sq-text-subtle text-xs">{h.dueDate ? new Date(h.dueDate).toLocaleDateString('vi') : '—'}</td>
+                        <td className="sq-text-subtle text-xs">{h.createdAt ? new Date(h.createdAt).toLocaleDateString('vi') : '—'}</td>
                       </tr>
                     ))
                   )}
@@ -472,20 +483,20 @@ function OverviewTab({ stats }) {
   return (
     <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        <StatCard icon={Users} label={t('admin.totalUsers')} value={stats?.userCount} colorClass="bg-violet-500/15 text-violet-400" />
-        <StatCard icon={UserCheck} label={t('admin.activeUsers')} value={stats?.activeUsers} colorClass="bg-green-500/15 text-green-400" />
-        <StatCard icon={UserX} label={t('admin.lockedUsers')} value={stats?.lockedUsers} colorClass="bg-red-500/15 text-red-400" />
-        <StatCard icon={BookOpen} label={t('admin.totalQuizzes')} value={stats?.quizCount} colorClass="bg-pink-500/15 text-pink-400" />
-        <StatCard icon={Eye} label={t('admin.publishedQuizzes')} value={stats?.publishedQuizzes} colorClass="bg-emerald-500/15 text-emerald-400" />
-        <StatCard icon={EyeOff} label={t('admin.draftQuizzes')} value={stats?.draftQuizzes} colorClass="bg-orange-500/15 text-orange-400" />
-        <StatCard icon={Zap} label={t('admin.totalSessions')} value={stats?.sessionCount} colorClass="bg-blue-500/15 text-blue-400" />
-        <StatCard icon={Activity} label={t('admin.activeSessions')} value={stats?.activeSessions} colorClass="bg-green-500/15 text-green-400" />
+        <StatCard icon={Users} label={t('admin.totalUsers')} value={stats?.userCount} colorKey="violet" />
+        <StatCard icon={UserCheck} label={t('admin.activeUsers')} value={stats?.activeUsers} colorKey="green" />
+        <StatCard icon={UserX} label={t('admin.lockedUsers')} value={stats?.lockedUsers} colorKey="red" />
+        <StatCard icon={BookOpen} label={t('admin.totalQuizzes')} value={stats?.quizCount} colorKey="pink" />
+        <StatCard icon={Eye} label={t('admin.publishedQuizzes')} value={stats?.publishedQuizzes} colorKey="emerald" />
+        <StatCard icon={EyeOff} label={t('admin.draftQuizzes')} value={stats?.draftQuizzes} colorKey="orange" />
+        <StatCard icon={Zap} label={t('admin.totalSessions')} value={stats?.sessionCount} colorKey="blue" />
+        <StatCard icon={Activity} label={t('admin.activeSessions')} value={stats?.activeSessions} colorKey="green" />
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard icon={Users} label={t('admin.newUsers30d')} value={stats?.newUsersLast30Days} colorClass="bg-indigo-500/15 text-indigo-400" />
-        <StatCard icon={BookOpen} label={t('admin.newQuizzes30d')} value={stats?.newQuizzesLast30Days} colorClass="bg-violet-500/15 text-violet-400" />
-        <StatCard icon={Zap} label={t('admin.newSessions30d')} value={stats?.newSessionsLast30Days} colorClass="bg-pink-500/15 text-pink-400" />
-        <StatCard icon={Users} label={t('admin.totalPlayers')} value={stats?.totalPlayers} colorClass="bg-cyan-500/15 text-cyan-400" />
+        <StatCard icon={Users} label={t('admin.newUsers30d')} value={stats?.newUsersLast30Days} colorKey="indigo" />
+        <StatCard icon={BookOpen} label={t('admin.newQuizzes30d')} value={stats?.newQuizzesLast30Days} colorKey="violet" />
+        <StatCard icon={Zap} label={t('admin.newSessions30d')} value={stats?.newSessionsLast30Days} colorKey="pink" />
+        <StatCard icon={Users} label={t('admin.totalPlayers')} value={stats?.totalPlayers} colorKey="cyan" />
       </div>
     </>
   )
@@ -517,8 +528,8 @@ export default function AdminPage() {
         transition={{ duration: 0.3 }}
         className="flex items-center gap-3 mb-6"
       >
-        <div className="w-11 h-11 rounded-xl bg-red-500/15 flex items-center justify-center">
-          <Shield size={22} className="text-red-400" />
+        <div className="w-11 h-11 rounded-xl sq-bg-danger-soft flex items-center justify-center">
+          <Shield size={22} className="sq-text-danger" />
         </div>
         <div>
           <h1 className="sq-page-title">{t('admin.title')}</h1>

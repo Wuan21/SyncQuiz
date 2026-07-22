@@ -37,13 +37,13 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-background/85 backdrop-blur-xl border-b border-border">
+    <nav className="sticky top-0 z-50 sq-bg-overlay backdrop-blur-xl sq-border-b">
       <div className="sq-container h-16 flex items-center justify-between">
 
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2.5 font-bold text-xl shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/25">
-            <Zap size={17} className="text-white" />
+        <Link to="/" className="flex items-center gap-2.5 font-bold text-xl shrink-0 sq-text-foreground">
+          <div className="w-9 h-9 rounded-xl sq-bg-gradient-primary flex items-center justify-center shadow-lg">
+            <Zap size={17} className="sq-text-white" />
           </div>
           <span className="sq-text-gradient font-bold tracking-tight">SyncQuiz</span>
         </Link>
@@ -67,7 +67,7 @@ export default function Navbar() {
               <NavLink
                 to="/admin"
                 className={({ isActive }) =>
-                  `sq-nav-link ${isActive ? '!bg-danger/10 !text-danger' : ''}`
+                  `sq-nav-link ${isActive ? 'active' : ''}`
                 }
               >
                 <Shield size={15} />
@@ -83,7 +83,7 @@ export default function Navbar() {
           {/* Language switcher */}
           <button
             onClick={toggleLanguage}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-surface text-xs font-semibold text-muted-foreground hover:bg-muted transition-all"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg sq-border sq-bg-surface text-xs font-semibold sq-text-muted hover:sq-bg-surface-2 transition-all"
             title={i18n.language === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
           >
             <span>🌐</span>
@@ -115,13 +115,13 @@ export default function Navbar() {
                   <img
                     src={user.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.email}`}
                     alt={user.fullName}
-                    className="w-8 h-8 rounded-xl object-cover bg-muted border border-border hover:border-primary/50 transition-all"
+                    className="w-8 h-8 rounded-xl object-cover sq-bg-surface sq-border hover:sq-border-primary transition-all"
                     title={t('nav.profile')}
                   />
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="sq-btn sq-btn-ghost sq-btn-icon text-muted-foreground"
+                  className="sq-btn sq-btn-ghost sq-btn-icon sq-text-muted hover:sq-text-foreground"
                   title={t('nav.logout')}
                   aria-label={t('nav.logout')}
                 >
@@ -142,7 +142,7 @@ export default function Navbar() {
 
           {/* Mobile menu */}
           <button
-            className="md:hidden sq-btn sq-btn-ghost sq-btn-icon text-muted-foreground"
+            className="md:hidden sq-btn sq-btn-ghost sq-btn-icon sq-text-muted hover:sq-text-foreground"
             onClick={() => setOpen(!open)}
             aria-label="Toggle menu"
             aria-expanded={open}
@@ -154,7 +154,7 @@ export default function Navbar() {
 
       {/* Mobile menu drawer */}
       {open && user && (
-        <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-xl">
+        <div className="md:hidden sq-border-t sq-bg-overlay backdrop-blur-xl">
           <div className="sq-container py-3 flex flex-col gap-1">
             {navLinks.map(({ to, key, icon: Icon }) => (
               <NavLink
@@ -174,7 +174,7 @@ export default function Navbar() {
                 to="/admin"
                 onClick={() => setOpen(false)}
                 className={({ isActive }) =>
-                  `sq-nav-link ${isActive ? '!bg-danger/10 !text-danger' : ''}`
+                  `sq-nav-link ${isActive ? 'active' : ''}`
                 }
               >
                 <Shield size={17} />

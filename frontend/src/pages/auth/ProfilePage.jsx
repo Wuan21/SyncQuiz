@@ -3,14 +3,14 @@ import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import useAuthStore from '../../store/useAuthStore'
 import { updateProfile, changePassword } from '../../api/users.api'
-import { User, Settings, Lock } from 'lucide-react'
+import { User, Lock } from 'lucide-react'
 
 export default function ProfilePage() {
   const user = useAuthStore((s) => s.user)
   const loadUser = useAuthStore((s) => s.loadUser)
-  
+
   const [activeTab, setActiveTab] = useState('profile')
-  
+
   const { register: registerProfile, handleSubmit: handleProfile, reset: resetProfile } = useForm()
   const { register: registerPassword, handleSubmit: handlePassword, reset: resetPassword, formState: { errors: pwdErrors } } = useForm()
 
@@ -49,65 +49,69 @@ export default function ProfilePage() {
   if (!user) return null
 
   return (
-    <div className="max-w-2xl mx-auto p-4 md:p-8">
-      <h1 className="text-3xl font-bold mb-8 text-white">Hồ sơ cá nhân</h1>
-      
-      <div className="flex gap-4 mb-8 border-b border-white/10 pb-4">
-        <button 
+    <div className="sq-page">
+      <h1 className="sq-page-title mb-6">Hồ sơ cá nhân</h1>
+
+      <div className="flex gap-4 mb-6 sq-border-b pb-4">
+        <button
           onClick={() => setActiveTab('profile')}
-          className={`flex items-center gap-2 font-semibold transition-colors ${activeTab === 'profile' ? 'text-violet-400' : 'text-white/50 hover:text-white/80'}`}
+          className={`flex items-center gap-2 font-semibold transition-colors ${
+            activeTab === 'profile' ? 'sq-text-primary' : 'sq-text-muted hover:sq-text-foreground'
+          }`}
         >
           <User size={18} /> Thông tin
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('security')}
-          className={`flex items-center gap-2 font-semibold transition-colors ${activeTab === 'security' ? 'text-violet-400' : 'text-white/50 hover:text-white/80'}`}
+          className={`flex items-center gap-2 font-semibold transition-colors ${
+            activeTab === 'security' ? 'sq-text-primary' : 'sq-text-muted hover:sq-text-foreground'
+          }`}
         >
           <Lock size={18} /> Bảo mật
         </button>
       </div>
 
       {activeTab === 'profile' && (
-        <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+        <div className="sq-card">
           <form onSubmit={handleProfile(onUpdateProfile)} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">Email</label>
-              <input type="text" value={user.email} disabled className="input-field opacity-50 cursor-not-allowed" />
+              <label className="sq-label">Email</label>
+              <input type="text" value={user.email} disabled className="sq-input opacity-50 cursor-not-allowed mt-1" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">Vai trò</label>
-              <input type="text" value={user.role.toUpperCase()} disabled className="input-field opacity-50 cursor-not-allowed font-bold text-violet-400" />
+              <label className="sq-label">Vai trò</label>
+              <input type="text" value={user.role.toUpperCase()} disabled className="sq-input opacity-50 cursor-not-allowed font-bold sq-text-primary mt-1" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">Tên hiển thị</label>
-              <input {...registerProfile('fullName')} className="input-field" placeholder="Nhập tên của bạn" required />
+              <label className="sq-label">Tên hiển thị</label>
+              <input {...registerProfile('fullName')} className="sq-input mt-1" placeholder="Nhập tên của bạn" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">URL Ảnh đại diện</label>
-              <input {...registerProfile('avatarUrl')} className="input-field" placeholder="https://..." />
+              <label className="sq-label">URL Ảnh đại diện</label>
+              <input {...registerProfile('avatarUrl')} className="sq-input mt-1" placeholder="https://..." />
             </div>
-            <button type="submit" className="btn-primary w-full">Lưu thay đổi</button>
+            <button type="submit" className="sq-btn sq-btn-primary w-full">Lưu thay đổi</button>
           </form>
         </div>
       )}
 
       {activeTab === 'security' && (
-        <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+        <div className="sq-card">
           <form onSubmit={handlePassword(onChangePassword)} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">Mật khẩu hiện tại</label>
-              <input type="password" {...registerPassword('currentPassword', { required: true })} className="input-field" />
+              <label className="sq-label">Mật khẩu hiện tại</label>
+              <input type="password" {...registerPassword('currentPassword', { required: true })} className="sq-input mt-1" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">Mật khẩu mới</label>
-              <input type="password" {...registerPassword('newPassword', { required: true, minLength: 8 })} className="input-field" />
-              {pwdErrors.newPassword && <span className="text-red-400 text-sm mt-1">Mật khẩu ít nhất 8 ký tự</span>}
+              <label className="sq-label">Mật khẩu mới</label>
+              <input type="password" {...registerPassword('newPassword', { required: true, minLength: 8 })} className="sq-input mt-1" />
+              {pwdErrors.newPassword && <span className="sq-error">Mật khẩu ít nhất 8 ký tự</span>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">Xác nhận mật khẩu mới</label>
-              <input type="password" {...registerPassword('confirmPassword', { required: true })} className="input-field" />
+              <label className="sq-label">Xác nhận mật khẩu mới</label>
+              <input type="password" {...registerPassword('confirmPassword', { required: true })} className="sq-input mt-1" />
             </div>
-            <button type="submit" className="btn-primary w-full">Đổi mật khẩu</button>
+            <button type="submit" className="sq-btn sq-btn-primary w-full">Đổi mật khẩu</button>
           </form>
         </div>
       )}

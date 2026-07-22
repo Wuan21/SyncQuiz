@@ -14,17 +14,16 @@ function PlayerCard({ player }) {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ duration: 0.25 }}
-      className="flex items-center gap-3 rounded-xl px-3 py-2.5 group"
-      style={{ backgroundColor: 'hsl(0 0% 100% / 0.04)' }}
+      className="flex items-center gap-3 rounded-xl px-3 py-2.5 group sq-bg-surface sq-border"
     >
       <span className="text-2xl">{player.avatar || '😀'}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate" style={{ color: 'hsl(0 0% 96%)' }}>{player.nickname}</p>
-        {player.teamName && <p className="text-xs truncate" style={{ color: 'hsl(0 0% 100% / 0.3)' }}>{player.teamName}</p>}
+        <p className="text-sm font-medium truncate sq-text-foreground">{player.nickname}</p>
+        {player.teamName && <p className="text-xs truncate sq-text-subtle">{player.teamName}</p>}
       </div>
       <div className="flex items-center gap-1.5">
-        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: player.connected ? 'hsl(142 60% 42%)' : 'hsl(0 0% 100% / 0.2)' }} />
-        <span className="text-xs" style={{ color: 'hsl(0 0% 100% / 0.25)' }}>{player.connected ? 'Online' : 'Offline'}</span>
+        <div className={`w-2 h-2 rounded-full ${player.connected ? 'sq-bg-success' : 'sq-bg-subtle opacity-50'}`} />
+        <span className="text-xs sq-text-muted">{player.connected ? 'Online' : 'Offline'}</span>
       </div>
     </motion.div>
   )
@@ -32,9 +31,9 @@ function PlayerCard({ player }) {
 
 function Centered({ children, onRetry }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ backgroundColor: 'hsl(225 42% 5%)' }}>
-      <div className="w-12 h-12 border-4 rounded-full animate-spin mb-4" style={{ borderColor: 'hsl(270 90% 58% / 0.3)', borderTopColor: 'hsl(270 90% 58%)' }} />
-      <p className="text-sm mb-4" style={{ color: 'hsl(0 0% 100% / 0.4)' }}>{children}</p>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 sq-bg-background">
+      <div className="w-12 h-12 border-4 rounded-full animate-spin mb-4 sq-border-primary sq-text-primary" style={{ borderTopColor: 'var(--primary)' }} />
+      <p className="text-sm mb-4 sq-text-muted">{children}</p>
       {onRetry && (
         <button onClick={onRetry} className="sq-btn sq-btn-secondary sq-btn-sm">
           <RefreshCw size={14} /> Thử lại
@@ -46,13 +45,13 @@ function Centered({ children, onRetry }) {
 
 function ErrorState({ message, onRetry }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ backgroundColor: 'hsl(225 42% 5%)' }}>
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 sq-bg-background">
       <div className="sq-card text-center max-w-sm w-full">
-        <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ backgroundColor: 'hsl(0 75% 55% / 0.12)' }}>
-          <X size={32} style={{ color: 'hsl(0 75% 55%)' }} />
+        <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center sq-bg-danger-soft sq-text-danger">
+          <X size={32} />
         </div>
-        <h2 className="font-bold text-lg mb-2">Không thể tạo phòng</h2>
-        <p className="text-sm mb-6" style={{ color: 'hsl(220 13% 65%)' }}>{message}</p>
+        <h2 className="font-bold text-lg mb-2 sq-text-foreground">Không thể tạo phòng</h2>
+        <p className="text-sm mb-6 sq-text-muted">{message}</p>
         <div className="flex gap-3 justify-center">
           <button onClick={() => window.history.back()} className="sq-btn sq-btn-secondary">
             <ArrowLeft size={14} /> Quay lại
@@ -119,7 +118,7 @@ export default function HostLobbyPage() {
       try {
         await connectSocket()
       } catch (socketErr) {
-        console.warn('[HOST LOBBY] Socket failed (game still playable):', socketErr.message)
+        // Socket failure shouldn't block the game entirely
       }
 
       if (socket.connected) {
@@ -134,8 +133,8 @@ export default function HostLobbyPage() {
             })
           })
           safeSet(() => setIsConnected(true))
-        } catch (attachErr) {
-          console.warn('[HOST LOBBY] Attach failed:', attachErr.message)
+        } catch (_) {
+          // Attach failure is non-fatal; players can still join
         }
       }
 
@@ -143,7 +142,6 @@ export default function HostLobbyPage() {
       safeSet(() => setPhase('lobby'))
     } catch (err) {
       if (abortRef.current?.signal.aborted) return
-      console.error('[HOST LOBBY] Init error:', err)
 
       const status = err?.response?.status
       const code = err?.response?.data?.code
@@ -187,7 +185,7 @@ export default function HostLobbyPage() {
       hasCreated.current = false
       quizIdRef.current = quizId
     }
-    initGame()
+    initGame()  // eslint-disable-line
     return () => { abortRef.current?.abort() }
   }, [quizId])
 
@@ -219,7 +217,7 @@ export default function HostLobbyPage() {
   if (phase === 'error') return <ErrorState message={errorMsg} onRetry={() => { hasCreated.current = false; initGame() }} />
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ backgroundColor: 'hsl(225 42% 5%)' }}>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 sq-bg-background">
       <div className="w-full max-w-lg">
         {/* PIN card */}
         <motion.div
@@ -229,11 +227,10 @@ export default function HostLobbyPage() {
           className="sq-card text-center mb-5"
         >
           <div className="flex items-center justify-center gap-2 mb-2">
-            <p className="text-sm font-medium uppercase tracking-wider" style={{ color: 'hsl(0 0% 100% / 0.4)' }}>Game PIN</p>
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs" style={{
-              backgroundColor: isConnected ? 'hsl(142 60% 42% / 0.15)' : 'hsl(0 75% 55% / 0.15)',
-              color: isConnected ? 'hsl(142 60% 42%)' : 'hsl(0 75% 55%)'
-            }}>
+            <p className="text-sm font-medium uppercase tracking-wider sq-text-subtle">Game PIN</p>
+            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
+              isConnected ? 'sq-bg-success-soft sq-text-success' : 'sq-bg-danger-soft sq-text-danger'
+            }`}>
               {isConnected ? <Wifi size={10} /> : <WifiOff size={10} />}
               {isConnected ? 'Đã kết nối' : 'Mất kết nối'}
             </div>
@@ -250,9 +247,9 @@ export default function HostLobbyPage() {
             </button>
           </div>
 
-          <p className="text-xs mt-4 leading-relaxed" style={{ color: 'hsl(0 0% 100% / 0.35)' }}>
+          <p className="text-xs mt-4 leading-relaxed sq-text-subtle">
             Người chơi truy cập{' '}
-            <span className="font-medium" style={{ color: 'hsl(270 92% 64%)' }}>{window.location.host}/join</span>
+            <span className="font-medium sq-text-primary-light">{window.location.host}/join</span>
             {' '}và nhập mã PIN này
           </p>
         </motion.div>
@@ -266,18 +263,18 @@ export default function HostLobbyPage() {
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Users size={18} style={{ color: 'hsl(270 92% 64%)' }} />
-              <span className="font-semibold text-sm">Người chơi</span>
+              <Users size={18} className="sq-text-primary" />
+              <span className="font-semibold text-sm sq-text-foreground">Người chơi</span>
               <span className="sq-badge sq-badge-primary ml-1">{players.length}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs" style={{ color: 'hsl(0 0% 100% / 0.35)' }}>
-              <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'hsl(142 60% 42%)' }} />
+            <div className="flex items-center gap-1.5 text-xs sq-text-muted">
+              <div className="w-2 h-2 rounded-full animate-pulse sq-bg-success" />
               Đang chờ
             </div>
           </div>
 
           {players.length === 0 ? (
-            <p className="text-sm text-center py-6" style={{ color: 'hsl(0 0% 100% / 0.25)' }}>
+            <p className="text-sm text-center py-6 sq-text-subtle">
               Chưa có người chơi nào tham gia...
             </p>
           ) : (
@@ -305,7 +302,7 @@ export default function HostLobbyPage() {
             <Play size={20} /> Bắt đầu game
           </button>
           {players.length === 0 && (
-            <p className="text-center text-xs mt-2" style={{ color: 'hsl(0 0% 100% / 0.3)' }}>Cần ít nhất 1 người chơi để bắt đầu</p>
+            <p className="text-center text-xs mt-2 sq-text-subtle">Cần ít nhất 1 người chơi để bắt đầu</p>
           )}
         </motion.div>
       </div>
@@ -317,8 +314,7 @@ export default function HostLobbyPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            style={{ backgroundColor: 'hsl(0 0% 0% / 0.8)' }}
+            className="fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4 sq-bg-overlay"
             onClick={() => setShowQR(false)}
           >
             <motion.div
@@ -330,16 +326,16 @@ export default function HostLobbyPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-5">
-                <h3 className="font-bold text-base">Quét để tham gia</h3>
-                <button onClick={() => setShowQR(false)} className="sq-btn sq-btn-ghost sq-btn-icon" style={{ color: 'hsl(0 0% 100% / 0.4)' }}>
+                <h3 className="font-bold text-base sq-text-foreground">Quét để tham gia</h3>
+                <button onClick={() => setShowQR(false)} className="sq-btn sq-btn-ghost sq-btn-icon sq-text-muted hover:sq-text-foreground">
                   <X size={18} />
                 </button>
               </div>
-              <div className="p-4 rounded-xl inline-block mb-4" style={{ backgroundColor: 'white' }}>
+              <div className="p-4 rounded-xl inline-block mb-4 bg-white">
                 <QRCodeSVG value={joinUrl} size={200} />
               </div>
-              <p className="text-xs mb-1 break-all px-2" style={{ color: 'hsl(0 0% 100% / 0.35)' }}>{joinUrl}</p>
-              <p className="text-4xl font-black font-mono mt-3 tracking-widest" style={{ color: 'hsl(270 92% 64%)' }}>{pin}</p>
+              <p className="text-xs mb-1 break-all px-2 sq-text-subtle">{joinUrl}</p>
+              <p className="text-4xl font-black font-mono mt-3 tracking-widest sq-text-primary-light">{pin}</p>
             </motion.div>
           </motion.div>
         )}

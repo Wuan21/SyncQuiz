@@ -47,7 +47,7 @@ export function Button({
   )
 }
 
-export function IconButton({ children, variant = 'ghost', size = 'md', className = '', ...props }) {
+export function IconButton({ children, variant = 'ghost', size: _size = 'md', className = '', ...props }) {
   const variants = {
     primary: 'sq-btn sq-btn-primary sq-btn-icon',
     secondary: 'sq-btn sq-btn-secondary sq-btn-icon',

@@ -1,6 +1,7 @@
 /**
  * SyncQuiz Skeleton Loaders
  * Consistent loading states for cards, rows, stats
+ * All sizing/colors derive from theme tokens so they work in light + dark mode
  */
 export function Skeleton({ className = '', ...props }) {
   return <div className={`sq-skeleton ${className}`} {...props} />
@@ -18,7 +19,7 @@ export function SkeletonCard() {
 
 export function SkeletonRow({ cols = 5 }) {
   return (
-    <div className="flex items-center gap-4 p-4 border-b border-white/5">
+    <div className="flex items-center gap-4 p-4 sq-border-b">
       {Array.from({ length: cols }).map((_, i) => (
         <Skeleton key={i} className="h-4 flex-1" style={{ maxWidth: i === 0 ? '200px' : '100px' }} />
       ))}

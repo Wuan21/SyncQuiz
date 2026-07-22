@@ -12,10 +12,11 @@ export function Modal({ open, onClose, title, children, className = '', size = '
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', handleKey)
+    const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
       document.removeEventListener('keydown', handleKey)
-      document.body.style.overflow = ''
+      document.body.style.overflow = prevOverflow
     }
   }, [open, onClose])
 
@@ -43,7 +44,7 @@ export function Modal({ open, onClose, title, children, className = '', size = '
             <h2 id="modal-title" className="sq-modal-title">{title}</h2>
             <button
               onClick={onClose}
-              className="sq-btn sq-btn-ghost sq-btn-icon text-white/40 hover:text-white"
+              className="sq-btn sq-btn-ghost sq-btn-icon sq-text-muted hover:sq-text-foreground"
               aria-label="Close modal"
             >
               <X size={18} />
@@ -71,7 +72,7 @@ export function ConfirmModal({
 }) {
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
-      <p className="text-white/60 text-sm mb-6">{message}</p>
+      <p className="sq-text-muted text-sm mb-6">{message}</p>
       <div className="flex gap-3">
         <button onClick={onClose} className="sq-btn sq-btn-secondary flex-1">
           {cancelText}

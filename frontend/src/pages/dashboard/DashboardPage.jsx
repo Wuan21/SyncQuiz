@@ -9,16 +9,20 @@ import useAuthStore from '../../store/useAuthStore'
 import { Skeleton } from '../../components/ui/Skeleton'
 
 /* ─── Stat Card ─── */
-function StatCard({ icon: Icon, label, value, bgColor, textColor, delay = 0 }) {
+const STAT_VARIANTS = {
+  primary:   { bg: 'sq-bg-primary-soft',  text: 'sq-text-primary-light' },
+  accent:    { bg: 'sq-bg-accent-soft',   text: 'sq-text-accent' },
+  success:   { bg: 'sq-bg-success-soft',  text: 'sq-text-success' },
+}
+
+function StatCard({ icon: Icon, label, value, variant = 'primary', delay = 0 }) {
+  const v = STAT_VARIANTS[variant] || STAT_VARIANTS.primary
   return (
     <div
       className="sq-stat"
       style={{ animationDelay: `${delay}ms`, animation: 'sq-fade-up 0.4s ease-out both' }}
     >
-      <div
-        className="sq-stat-icon"
-        style={{ backgroundColor: bgColor, color: textColor }}
-      >
+      <div className={`sq-stat-icon ${v.bg} ${v.text}`}>
         <Icon size={20} />
       </div>
       <div>
@@ -30,24 +34,24 @@ function StatCard({ icon: Icon, label, value, bgColor, textColor, delay = 0 }) {
 }
 
 /* ─── Quick Action Card ─── */
-function QuickAction({ to, icon: Icon, title, description, bgColor, textColor, delay = 0 }) {
+function QuickAction({ to, icon: Icon, title, description, variant = 'primary', delay = 0 }) {
+  const v = STAT_VARIANTS[variant] || STAT_VARIANTS.primary
   return (
     <Link
       to={to}
-      className="sq-card flex items-center gap-4 group"
+      className="sq-card sq-card-interactive flex items-center gap-4 group"
       style={{ animationDelay: `${delay}ms`, animation: 'sq-fade-up 0.4s ease-out both' }}
     >
       <div
-        className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105"
-        style={{ backgroundColor: bgColor, color: textColor }}
+        className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${v.bg} ${v.text}`}
       >
         <Icon size={22} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-semibold">{title}</p>
-        <p className="text-sm mt-0.5">{description}</p>
+        <p className="font-semibold sq-text-foreground">{title}</p>
+        <p className="text-sm mt-0.5 sq-text-muted">{description}</p>
       </div>
-      <ArrowRight size={18} className="shrink-0 transition-transform group-hover:translate-x-1" />
+      <ArrowRight size={18} className="shrink-0 transition-transform group-hover:translate-x-1 sq-text-muted" />
     </Link>
   )
 }
@@ -63,11 +67,11 @@ function QuizCard({ quiz, index }) {
       <div className="sq-quiz-cover">
         {quiz.coverImageUrl
           ? <img src={quiz.coverImageUrl} alt={quiz.title} loading="lazy" />
-          : <BookOpen size={28} className="opacity-30" />
+          : <BookOpen size={28} className="sq-text-subtle opacity-60" />
         }
       </div>
-      <h3 className="font-semibold text-sm truncate mb-1">{quiz.title}</h3>
-      <p className="text-sm mt-1 mb-3">
+      <h3 className="font-semibold text-sm truncate mb-1 sq-text-foreground">{quiz.title}</h3>
+      <p className="text-sm mt-1 mb-3 sq-text-muted">
         {quiz.questionCount || 0} {t('dashboard.questionsCount', { count: quiz.questionCount || 0 })}
       </p>
       <div className="flex gap-2">
@@ -119,9 +123,9 @@ function LoadingCard() {
 function ServerWakingUpState({ onRetry }) {
   return (
     <div className="sq-card text-center py-8">
-      <Loader2 size={40} className="mx-auto mb-3 animate-spin opacity-50" />
-      <p className="font-medium mb-1">Máy chủ đang khởi động</p>
-      <p className="text-sm text-muted mb-4">Vui lòng chờ trong giây lát...</p>
+      <Loader2 size={40} className="mx-auto mb-3 animate-spin sq-text-muted opacity-60" />
+      <p className="font-medium mb-1 sq-text-foreground">Máy chủ đang khởi động</p>
+      <p className="text-sm sq-text-muted mb-4">Vui lòng chờ trong giây lát...</p>
       <button onClick={onRetry} className="sq-btn sq-btn-primary sq-btn-sm">
         <RefreshCw size={14} /> Thử lại ngay
       </button>
@@ -132,9 +136,9 @@ function ServerWakingUpState({ onRetry }) {
 function ErrorState({ onRetry }) {
   return (
     <div className="sq-card text-center py-8">
-      <AlertCircle size={40} className="mx-auto mb-3 opacity-50" />
-      <p className="font-medium mb-1">Không thể tải dữ liệu</p>
-      <p className="text-sm text-muted mb-4">Vui lòng thử lại sau</p>
+      <AlertCircle size={40} className="mx-auto mb-3 sq-text-muted opacity-60" />
+      <p className="font-medium mb-1 sq-text-foreground">Không thể tải dữ liệu</p>
+      <p className="text-sm sq-text-muted mb-4">Vui lòng thử lại sau</p>
       <button onClick={onRetry} className="sq-btn sq-btn-primary sq-btn-sm">
         <RefreshCw size={14} /> Thử lại
       </button>
@@ -147,9 +151,9 @@ function EmptyQuizzesState() {
   const { t } = useTranslation()
   return (
     <div className="sq-card text-center py-10">
-      <BookOpen size={40} className="mx-auto mb-3 opacity-30" />
-      <p className="font-medium mb-1">{t('dashboard.noQuizzesYet')}</p>
-      <p className="text-sm mb-5">{t('dashboard.createFirstQuiz')}</p>
+      <BookOpen size={40} className="mx-auto mb-3 sq-text-subtle opacity-60" />
+      <p className="font-medium mb-1 sq-text-foreground">{t('dashboard.noQuizzesYet')}</p>
+      <p className="text-sm mb-5 sq-text-muted">{t('dashboard.createFirstQuiz')}</p>
       <Link to="/quizzes/new" className="sq-btn sq-btn-primary">
         <Plus size={16} /> {t('dashboard.createQuizBtn')}
       </Link>
@@ -209,15 +213,15 @@ export default function DashboardPage() {
             </>
           ) : isError && !data ? (
             <>
-              <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value="—" bgColor="hsl(270 90% 58% / 0.12)" textColor="hsl(270 92% 64%)" />
-              <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value="—" bgColor="hsl(330 85% 58% / 0.12)" textColor="hsl(330 90% 65%)" />
-              <StatCard icon={Users} label={t('dashboard.avgPlayers')} value="—" bgColor="hsl(145 65% 42% / 0.12)" textColor="hsl(145 55% 48%)" />
+              <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value="—" variant="primary" />
+              <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value="—" variant="accent" />
+              <StatCard icon={Users} label={t('dashboard.avgPlayers')} value="—" variant="success" />
             </>
           ) : (
             <>
-              <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value={stats?.totalQuizzes ?? '—'} bgColor="hsl(270 90% 58% / 0.12)" textColor="hsl(270 92% 64%)" delay={0} />
-              <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value={stats?.totalGames ?? '—'} bgColor="hsl(330 85% 58% / 0.12)" textColor="hsl(330 90% 65%)" delay={60} />
-              <StatCard icon={Users} label={t('dashboard.avgPlayers')} value={stats?.averagePlayers ?? '—'} bgColor="hsl(145 65% 42% / 0.12)" textColor="hsl(145 55% 48%)" delay={120} />
+              <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value={stats?.totalQuizzes ?? '—'} variant="primary" delay={0} />
+              <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value={stats?.totalGames ?? '—'} variant="accent" delay={60} />
+              <StatCard icon={Users} label={t('dashboard.avgPlayers')} value={stats?.averagePlayers ?? '—'} variant="success" delay={120} />
             </>
           )}
         </div>
@@ -232,8 +236,7 @@ export default function DashboardPage() {
             icon={Plus}
             title={t('dashboard.createQuizBtn')}
             description={t('dashboard.createQuizDesc')}
-            bgColor="hsl(270 90% 58% / 0.12)"
-            textColor="hsl(270 92% 64%)"
+            variant="primary"
             delay={150}
           />
           <QuickAction
@@ -241,8 +244,7 @@ export default function DashboardPage() {
             icon={Play}
             title={t('nav.joinGame')}
             description={t('dashboard.joinGameDesc')}
-            bgColor="hsl(330 85% 58% / 0.12)"
-            textColor="hsl(330 90% 65%)"
+            variant="accent"
             delay={200}
           />
         </div>
@@ -252,7 +254,7 @@ export default function DashboardPage() {
       <section className="sq-section">
         <div className="sq-section-header">
           <h2 className="sq-section-title">{t('dashboard.myQuizzes')}</h2>
-          <Link to="/quizzes" className="text-sm font-medium" style={{ color: 'hsl(270 92% 64%)' }}>
+          <Link to="/quizzes" className="text-sm font-medium sq-text-primary hover:sq-text-primary-light transition-colors inline-flex items-center gap-1">
             {t('dashboard.viewAll')} <ArrowRight size={14} />
           </Link>
         </div>

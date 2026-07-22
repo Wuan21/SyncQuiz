@@ -87,11 +87,11 @@ export default function PlayerJoinPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+    <div className="min-h-screen sq-bg-background flex items-center justify-center p-4">
       {/* Background glows */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-violet-600/8 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-600/8 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 sq-bg-primary-soft rounded-full blur-3xl opacity-60" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 sq-bg-accent-soft rounded-full blur-3xl opacity-60" />
       </div>
 
       <motion.div
@@ -102,18 +102,18 @@ export default function PlayerJoinPage() {
       >
         {/* Logo */}
         <div className="flex flex-col items-center mb-7">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center shadow-xl shadow-violet-500/25 mb-3">
-            <Zap size={24} className="text-white" />
+          <div className="w-14 h-14 rounded-2xl sq-bg-gradient-primary flex items-center justify-center shadow-xl mb-3">
+            <Zap size={24} className="sq-text-white" />
           </div>
-          <span className="text-2xl font-bold sq-gradient">SyncQuiz</span>
-          <p className="text-white/40 text-sm mt-1">Tham gia game</p>
+          <span className="text-2xl font-bold sq-text-gradient">SyncQuiz</span>
+          <p className="sq-text-muted text-sm mt-1">Tham gia game</p>
         </div>
 
         <div className="sq-card sq-animate-fade-up">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* PIN — most prominent */}
             <div className="sq-form-group">
-              <label className="sq-label">Mã PIN <span className="text-red-400">*</span></label>
+              <label className="sq-label">Mã PIN <span className="sq-text-danger">*</span></label>
               <input
                 {...register('pin', {
                   required: 'Nhập mã PIN',
@@ -131,7 +131,7 @@ export default function PlayerJoinPage() {
 
             {/* Nickname */}
             <div className="sq-form-group">
-              <label className="sq-label">Nickname <span className="text-red-400">*</span></label>
+              <label className="sq-label">Nickname <span className="sq-text-danger">*</span></label>
               <input
                 {...register('nickname', {
                   required: 'Nhập nickname',
@@ -146,7 +146,7 @@ export default function PlayerJoinPage() {
 
             {/* Team (optional) */}
             <div className="sq-form-group">
-              <label className="sq-label">Tên nhóm <span className="text-white/25 font-normal">(tùy chọn)</span></label>
+              <label className="sq-label">Tên nhóm <span className="sq-text-subtle font-normal">(tùy chọn)</span></label>
               <input
                 {...register('teamName')}
                 placeholder="VD: Team Alpha"
@@ -163,10 +163,10 @@ export default function PlayerJoinPage() {
                     key={i}
                     type="button"
                     onClick={() => setAvatarIdx(i)}
-                    className={`text-2xl p-2 rounded-xl transition-all duration-200 ${
+                    className={`text-2xl p-2 rounded-xl transition-all duration-200 sq-border ${
                       i === avatarIdx
-                        ? 'bg-violet-500/30 ring-2 ring-violet-400 scale-110'
-                        : 'bg-white/5 hover:bg-white/10'
+                        ? 'sq-bg-primary-soft sq-border-primary scale-110'
+                        : 'sq-bg-surface hover:sq-bg-surface-2 sq-text-foreground'
                     }`}
                   >
                     {a}
@@ -182,16 +182,14 @@ export default function PlayerJoinPage() {
             >
               {isJoining ? (
                 <>
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
                   Đang kết nối...
                 </>
               ) : (
-                <>
-                  Vào game <span className="ml-1">→</span>
-                </>
+                <>Vào game <span className="ml-1">→</span></>
               )}
             </button>
           </form>
