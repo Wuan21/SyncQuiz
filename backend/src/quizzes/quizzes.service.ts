@@ -120,21 +120,25 @@ export class QuizzesService {
   }
 
   async toggleFavorite(userId: string, quizId: string) {
-    const user: any = await this.userModel.findById(userId).exec();
+    const user: any = await this.userModel
+      .findById(userId)
+      .lean()
+      .select('favoriteQuizIds')
+      .exec();
     if (!user) throw new NotFoundException('User not found');
 
-    const favorites: string[] = user.favoriteQuizIds || [];
-    const idx = favorites.indexOf(quizId);
-    if (idx >= 0) {
-      favorites.splice(idx, 1);
+    const isFavorite = user.favoriteQuizIds?.includes(quizId);
+    // Use atomic $addToSet/$pull to prevent race conditions
+    if (isFavorite) {
+      await this.userModel.findByIdAndUpdate(userId, {
+        $pull: { favoriteQuizIds: quizId },
+      });
     } else {
-      favorites.push(quizId);
+      await this.userModel.findByIdAndUpdate(userId, {
+        $addToSet: { favoriteQuizIds: quizId },
+      });
     }
 
-    await this.userModel.findByIdAndUpdate(userId, {
-      favoriteQuizIds: favorites,
-    });
-
-    return { success: true, isFavorite: idx < 0 };
+    return { success: true, isFavorite: !isFavorite };
   }
 }

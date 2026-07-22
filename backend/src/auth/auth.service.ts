@@ -33,7 +33,8 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user: any = await this.usersService.findByEmail(dto.email, true);
     if (!user) throw new UnauthorizedException('Invalid credentials');
-    if (!user.isActive) throw new UnauthorizedException('Account is deactivated');
+    if (!user.isActive)
+      throw new UnauthorizedException('Account is deactivated');
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
@@ -49,6 +50,7 @@ export class AuthService {
         secret: this.config.get<string>('JWT_REFRESH_SECRET'),
       });
       const user: any = await this.usersService.findById(payload.sub);
+      if (!user) throw new UnauthorizedException('User not found');
 
       const uid = user._id?.toString() || user.id;
       const tokens = await this.generateTokens(uid, user.email, user.role);

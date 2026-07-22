@@ -865,6 +865,8 @@ export const initSocket = (server: any) => {
         game.answers[idx][socket.id] = { optionIndex, timeSpent };
 
         const q = game.questions[idx];
+        if (!q) return;
+
         const opts: any[] = q.options || [];
         const isCorrect = !!opts[optionIndex]?.isCorrect;
 
@@ -1051,12 +1053,12 @@ function sendNextQuestion(gameId: string) {
   const game = activeGames.get(gameId);
   if (!game) return;
 
-  let q: any;
-
   // On first call after reload-from-DB, skipNextQuestion is set → do NOT increment idx
   if (game.skipNextQuestion) {
     game.skipNextQuestion = false;
-    q = game.questions[game.currentIdx];
+    const q = game.questions[game.currentIdx];
+    if (!q) return;
+
     // Emit question at currentIdx (already correct from DB) to host
     if (game.hostSocketId) {
       io.to(game.hostSocketId).emit('host:question', {
@@ -1089,7 +1091,8 @@ function sendNextQuestion(gameId: string) {
     return endGame(gameId);
   }
 
-  q = game.questions[game.currentIdx];
+  const q = game.questions[game.currentIdx];
+  if (!q) return endGame(gameId);
   const total = game.questions.length;
   const room = getGameRoom(gameId);
 

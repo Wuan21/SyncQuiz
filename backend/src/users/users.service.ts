@@ -45,6 +45,8 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
 
     const userWithPw: any = await this.usersRepo.findByEmail(user.email, true);
+    if (!userWithPw) throw new NotFoundException('User not found');
+
     const valid = await bcrypt.compare(
       dto.currentPassword,
       userWithPw.passwordHash,
