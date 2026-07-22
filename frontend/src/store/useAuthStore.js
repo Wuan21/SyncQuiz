@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getMe, logout as apiLogout, syncUser } from '../api/auth.api'
-import { fetchAuthSession, signOut } from 'aws-amplify/auth'
 
 const isCognitoEnabled = !!(
   import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID &&
@@ -32,7 +31,6 @@ const useAuthStore = create(
 
         if (!isCognitoEnabled) {
           // Backend returns { user, accessToken, refreshToken }
-          // or NestJS wraps it as { user, ...tokens } — accessTokens may be top-level
           const user = data.user || data.data?.user || data
           const accessToken = data.accessToken || data.data?.accessToken || null
           const refreshToken = data.refreshToken || data.data?.refreshToken || null
@@ -49,7 +47,10 @@ const useAuthStore = create(
 
       logout: async () => {
         if (isCognitoEnabled) {
-          try { await signOut() } catch (_) {}
+          try {
+            const { signOut } = await import('aws-amplify/auth')
+            await signOut()
+          } catch (_) {}
         } else {
           try { await apiLogout() } catch (_) {}
         }
@@ -63,6 +64,7 @@ const useAuthStore = create(
         set({ isLoading: true })
         try {
           if (isCognitoEnabled) {
+            const { fetchAuthSession } = await import('aws-amplify/auth')
             const session = await fetchAuthSession()
             const token =
               session.tokens?.idToken?.toString() ||

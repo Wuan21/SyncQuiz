@@ -334,21 +334,32 @@ export const initSocket = (server: any) => {
     pingInterval: 25000,
   });
 
-  /* ── Cognito verifier (optional) ───────────────────────────────────── */
+  /* ── Cognito verifier (optional — non-blocking, timeout on JWKS fetch) */
   let cognitoVerifier: any = null;
   if (
     process.env.AWS_COGNITO_USER_POOL_ID &&
     process.env.AWS_COGNITO_CLIENT_ID
   ) {
-    try {
-      cognitoVerifier = CognitoJwtVerifier.create({
+    // Don't block server startup on JWKS fetch — max 5s timeout
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('JWKS fetch timeout')), 5000),
+    );
+    const createVerifier = async () =>
+      CognitoJwtVerifier.create({
         userPoolId: process.env.AWS_COGNITO_USER_POOL_ID,
         tokenUse: (process.env.AWS_COGNITO_TOKEN_USE as any) || 'id',
         clientId: process.env.AWS_COGNITO_CLIENT_ID,
       });
-    } catch (e: any) {
-      console.error('[Socket] Failed to init Cognito verifier:', e.message);
-    }
+    Promise.race([createVerifier(), timeoutPromise])
+      .then((verifier) => {
+        cognitoVerifier = verifier;
+      })
+      .catch((e: any) => {
+        console.warn(
+          '[Socket] Cognito verifier init failed (socket auth falls back to JWT):',
+          e.message,
+        );
+      });
   }
 
   /* ── Auth middleware (optional — players don't need auth) ─────────── */
@@ -1240,24 +1251,35 @@ async function endGame(gameId: string) {
 
     const AchievementModel = getAchievementModel();
     if (AchievementModel) {
+      const badgePromises: Promise<void>[] = [];
       for (const p of finalLeaderboard) {
         if (!p.playerId) continue;
         if (p.rank === 1)
-          await awardAchievement(AchievementModel, p.playerId, 'centurion');
+          badgePromises.push(
+            awardAchievement(AchievementModel, p.playerId, 'centurion'),
+          );
         if (p.streak >= 5)
-          await awardAchievement(AchievementModel, p.playerId, 'streak_5');
-        const fast = p.answers.some(
+          badgePromises.push(
+            awardAchievement(AchievementModel, p.playerId, 'streak_5'),
+          );
+        const fast = p.answers?.some(
           (a: any) => a.timeSpent < 3000 && a.isCorrect,
         );
         if (fast)
-          await awardAchievement(AchievementModel, p.playerId, 'speed_demon');
+          badgePromises.push(
+            awardAchievement(AchievementModel, p.playerId, 'speed_demon'),
+          );
       }
       if (finalLeaderboard.length >= 20) {
         for (const p of finalLeaderboard) {
           if (p.playerId)
-            await awardAchievement(AchievementModel, p.playerId, 'social');
+            badgePromises.push(
+              awardAchievement(AchievementModel, p.playerId, 'social'),
+            );
         }
       }
+      // Award all badges in parallel instead of sequentially
+      await Promise.all(badgePromises);
     }
   } catch (err: any) {
     console.error('[Socket] persist final game failed:', err.message);

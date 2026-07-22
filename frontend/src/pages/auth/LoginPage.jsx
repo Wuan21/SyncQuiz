@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
 import { login, syncUser } from '../../api/auth.api'
 import useAuthStore from '../../store/useAuthStore'
-import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth'
 
 const isCognitoEnabled = !!(
   import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID &&
@@ -67,6 +66,7 @@ export default function LoginPage() {
 
     try {
       if (isCognitoEnabled) {
+        const { signIn, signOut, fetchAuthSession } = await import('aws-amplify/auth')
         try { await signOut() } catch (_) {}
 
         try {

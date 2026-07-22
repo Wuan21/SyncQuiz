@@ -46,7 +46,8 @@ export default function App() {
 
   useEffect(() => {
     if (isCognitoEnabled || accessToken) loadUser()
-  }, []) // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // loadUser is a stable Zustand action, intentionally run once on mount
 
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>

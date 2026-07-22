@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { fetchAuthSession } from 'aws-amplify/auth'
 
 const isCognitoEnabled = !!(
   import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID &&
@@ -20,6 +19,8 @@ api.interceptors.request.use(async (config) => {
 
   if (isCognitoEnabled) {
     try {
+      // Dynamic import of Amplify auth — only when Cognito is configured
+      const { fetchAuthSession } = await import('aws-amplify/auth')
       const session = await fetchAuthSession()
       token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
       if (token) localStorage.setItem('accessToken', token)
@@ -69,7 +70,8 @@ api.interceptors.response.use(
     if (!status) return Promise.reject(err)
 
     // Skip auth redirect for login/register/refresh endpoints
-    const isAuthEndpoint = original.url?.includes('/auth/login') ||
+    const isAuthEndpoint =
+      original.url?.includes('/auth/login') ||
       original.url?.includes('/auth/register') ||
       original.url?.includes('/auth/refresh')
 

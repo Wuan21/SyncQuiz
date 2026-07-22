@@ -50,6 +50,8 @@ export class Quiz {
 export const QuizSchema = SchemaFactory.createForClass(Quiz);
 QuizSchema.index({ ownerId: 1 });
 QuizSchema.index({ visibility: 1, isDeleted: 1 });
+QuizSchema.index({ categoryId: 1 });
+QuizSchema.index({ title: 'text' });
 QuizSchema.set('toJSON', {
   virtuals: true,
 

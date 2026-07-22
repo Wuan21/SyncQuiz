@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
 import { register as apiRegister } from '../../api/auth.api'
 import useAuthStore from '../../store/useAuthStore'
-import { signUp, confirmSignUp } from 'aws-amplify/auth'
 
 const isCognitoEnabled = !!(
   import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID &&
@@ -33,6 +32,7 @@ export default function RegisterPage() {
     setIsLoading(true)
     try {
       if (isCognitoEnabled) {
+        const { signUp } = await import('aws-amplify/auth')
         setSignUpEmail(data.email)
         const safeUsername = data.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') + '_' + Date.now()
         setSignUpUsername(safeUsername)
@@ -73,6 +73,7 @@ export default function RegisterPage() {
     if (!code) return toast.error('Please enter the verification code')
     setIsConfirming(true)
     try {
+      const { confirmSignUp } = await import('aws-amplify/auth')
       await confirmSignUp({ username: signUpUsername, confirmationCode: code })
       toast.success(t('auth.verificationSuccess'))
       navigate('/login')

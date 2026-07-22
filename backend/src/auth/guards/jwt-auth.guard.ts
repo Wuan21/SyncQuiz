@@ -49,7 +49,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
           email.split('@')[0] ||
           'Cognito User';
 
-        let user = await this.usersRepo.findOne({
+        let user: any = await this.usersRepo.findOne({
           $or: [{ cognitoId }, { email }],
         });
 

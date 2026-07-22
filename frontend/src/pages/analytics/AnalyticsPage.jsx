@@ -1,18 +1,37 @@
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts'
 import { Trophy, Users, BookOpen, Zap, TrendingUp } from 'lucide-react'
 import { getAnalytics } from '../../api/upload.api'
 import { getMyAchievements } from '../../api/advanced.api'
 
-const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6']
-
+// Recharts components are loaded dynamically to reduce initial bundle by ~100KB
 export default function AnalyticsPage() {
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- Charts loaded async via useEffect
+  const [Charts, setCharts] = useState(null)
   const { data: analytics } = useQuery({ queryKey: ['analytics'], queryFn: getAnalytics })
   const { data: achievements } = useQuery({ queryKey: ['achievements'], queryFn: getMyAchievements })
 
+  // Dynamic import recharts — saves ~100KB from initial bundle
+  useEffect(() => {
+    Promise.all([
+      import('recharts'),
+    ]).then(([rechartsModule]) => {
+      setCharts({
+        BarChart: rechartsModule.BarChart,
+        Bar: rechartsModule.Bar,
+        XAxis: rechartsModule.XAxis,
+        YAxis: rechartsModule.YAxis,
+        Tooltip: rechartsModule.Tooltip,
+        ResponsiveContainer: rechartsModule.ResponsiveContainer,
+        PieChart: rechartsModule.PieChart,
+        Pie: rechartsModule.Pie,
+        Cell: rechartsModule.Cell,
+      })
+    }).catch(() => {})
+  }, [])
+
   const earnedBadges = achievements?.filter((a) => a.earned) || []
 
-  // Build chart data from recent sessions
   const sessionChart = analytics?.recentSessions?.map((s, i) => ({
     name: `Game ${i + 1}`,
     players: s.playerCount || s.players?.length || 0,
@@ -25,6 +44,13 @@ export default function AnalyticsPage() {
     { name: 'Remaining', value: (achievements?.length || 0) - earnedBadges.length },
   ]
 
+  const statCards = [
+    { label: 'Total Games', value: analytics?.totalSessions, icon: Zap, color: 'text-violet-400' },
+    { label: 'Quizzes', value: analytics?.quizCount, icon: BookOpen, color: 'text-pink-400' },
+    { label: 'Avg Players', value: analytics?.avgPlayers, icon: Users, color: 'text-blue-400' },
+    { label: 'Badges', value: `${earnedBadges.length}/${achievements?.length || 0}`, icon: Trophy, color: 'text-yellow-400' },
+  ]
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8 flex items-center gap-3">
@@ -33,12 +59,7 @@ export default function AnalyticsPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: 'Total Games', value: analytics?.totalSessions, icon: Zap, color: 'text-violet-400' },
-          { label: 'Quizzes', value: analytics?.quizCount, icon: BookOpen, color: 'text-pink-400' },
-          { label: 'Avg Players', value: analytics?.avgPlayers, icon: Users, color: 'text-blue-400' },
-          { label: 'Badges', value: `${earnedBadges.length}/${achievements?.length || 0}`, icon: Trophy, color: 'text-yellow-400' },
-        ].map(({ label, value, icon: Icon, color }) => (
+        {statCards.map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="card flex items-center gap-3">
             <Icon size={24} className={color} />
             <div>
@@ -53,7 +74,7 @@ export default function AnalyticsPage() {
         {/* Recent games bar chart */}
         <div className="card lg:col-span-2">
           <h2 className="font-semibold mb-4">Players per Game</h2>
-          {sessionChart.length > 0 ? (
+          {sessionChart.length > 0 && Charts ? (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={sessionChart}>
                 <XAxis dataKey="name" stroke="#ffffff30" tick={{ fill: '#ffffff60', fontSize: 11 }} />
@@ -63,7 +84,9 @@ export default function AnalyticsPage() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-48 flex items-center justify-center text-white/30">No game data yet</div>
+            <div className="h-48 flex items-center justify-center text-white/30">
+              {sessionChart.length === 0 ? 'No game data yet' : 'Loading charts...'}
+            </div>
           )}
         </div>
 
@@ -71,16 +94,20 @@ export default function AnalyticsPage() {
         <div className="card">
           <h2 className="font-semibold mb-4">Badges Progress</h2>
           <div className="flex flex-col items-center">
-            <ResponsiveContainer width="100%" height={150}>
-              <PieChart>
-                <Pie data={badgePieData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} dataKey="value">
-                  {badgePieData.map((_, i) => (
-                    <Cell key={i} fill={i === 0 ? '#6366f1' : '#ffffff15'} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ background: '#1e1b4b', border: 'none', borderRadius: 8, color: '#fff' }} />
-              </PieChart>
-            </ResponsiveContainer>
+            {Charts ? (
+              <ResponsiveContainer width="100%" height={150}>
+                <PieChart>
+                  <Pie data={badgePieData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} dataKey="value">
+                    {badgePieData.map((_, i) => (
+                      <Cell key={i} fill={i === 0 ? '#6366f1' : '#ffffff15'} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: '#1e1b4b', border: 'none', borderRadius: 8, color: '#fff' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[150px] flex items-center justify-center text-white/30">Loading...</div>
+            )}
             <p className="text-3xl font-bold text-violet-400">{earnedBadges.length}</p>
             <p className="text-white/40 text-sm">of {achievements?.length || 0} badges</p>
           </div>

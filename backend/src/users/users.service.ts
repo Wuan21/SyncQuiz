@@ -7,22 +7,19 @@ import {
 import * as bcrypt from 'bcrypt';
 import { UsersRepository } from './users.repository';
 import { UpdateProfileDto, ChangePasswordDto } from './dto/update-profile.dto';
-import { UserDocument, UserRole } from './schemas/user.schema';
+import { UserRole } from './schemas/user.schema';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly usersRepo: UsersRepository) {}
 
-  async findById(id: string): Promise<UserDocument> {
+  async findById(id: string) {
     const user = await this.usersRepo.findById(id);
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
 
-  async findByEmail(
-    email: string,
-    withPassword = false,
-  ): Promise<UserDocument | null> {
+  async findByEmail(email: string, withPassword = false) {
     return this.usersRepo.findByEmail(email, withPassword);
   }
 
@@ -31,27 +28,23 @@ export class UsersService {
     passwordHash: string;
     fullName: string;
     role?: UserRole;
-  }): Promise<UserDocument> {
+  }) {
     const existing = await this.usersRepo.findByEmail(data.email);
     if (existing) throw new ConflictException('Email already registered');
     return this.usersRepo.create(data);
   }
 
-  async updateProfile(
-    userId: string,
-    dto: UpdateProfileDto,
-  ): Promise<UserDocument> {
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.usersRepo.updateById(userId, dto);
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
-    const user = await this.usersRepo.findById(userId);
+    const user: any = await this.usersRepo.findById(userId);
     if (!user) throw new NotFoundException('User not found');
 
-    // Re-fetch with password
-    const userWithPw = await this.usersRepo.findByEmail(user.email, true);
+    const userWithPw: any = await this.usersRepo.findByEmail(user.email, true);
     const valid = await bcrypt.compare(
       dto.currentPassword,
       userWithPw.passwordHash,
