@@ -60,7 +60,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             fullName,
           });
         } else if (user && !user.cognitoId) {
-          await this.usersRepo.updateById((user as any)._id || user.id, {
+          await this.usersRepo.updateById(user._id || user.id, {
             cognitoId,
           });
         }
@@ -71,7 +71,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             throw new UnauthorizedException('Account is deactivated');
           }
           req.user = {
-            id: (user as any)._id?.toString() || user.id,
+            id: user._id?.toString() || user.id,
             email: user.email,
             role: user.role,
             cognitoId: user.cognitoId,

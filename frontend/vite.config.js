@@ -15,18 +15,30 @@ export default defineConfig({
   build: {
     target: 'es2020',
     cssCodeSplit: true,
+    chunkSizeWarningLimit: 600, // Allow slightly larger chunks
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            // Core React - loaded first
             if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
               return 'vendor-react'
             }
+            // React Query - cached separately
             if (id.includes('@tanstack/react-query')) {
               return 'vendor-query'
             }
+            // UI libraries - icons, animations, toast
             if (id.includes('lucide') || id.includes('framer-motion') || id.includes('react-hot-toast')) {
               return 'vendor-ui'
+            }
+            // Heavy charting - lazy loaded separately
+            if (id.includes('recharts')) {
+              return 'vendor-charts'
+            }
+            // AWS Amplify - lazy loaded for Cognito
+            if (id.includes('aws-amplify') || id.includes('@aws-amplify')) {
+              return 'vendor-aws'
             }
             return 'vendor-misc'
           }

@@ -7,6 +7,24 @@ const isCognitoEnabled = !!(
   import.meta.env.VITE_AWS_COGNITO_CLIENT_ID
 )
 
+// Cache Cognito auth module
+let cachedCognitoAuth = null
+let cognitoImportPromise = null
+
+async function getCognitoAuth() {
+  if (cachedCognitoAuth) return cachedCognitoAuth
+  if (cognitoImportPromise) return cognitoImportPromise
+
+  cognitoImportPromise = import('aws-amplify/auth')
+    .then((module) => {
+      cachedCognitoAuth = module
+      return module
+    })
+    .catch(() => null)
+
+  return cognitoImportPromise
+}
+
 const useAuthStore = create(
   persist(
     (set, get) => ({
@@ -30,7 +48,6 @@ const useAuthStore = create(
         if (!data) return
 
         if (!isCognitoEnabled) {
-          // Backend returns { user, accessToken, refreshToken }
           const user = data.user || data.data?.user || data
           const accessToken = data.accessToken || data.data?.accessToken || null
           const refreshToken = data.refreshToken || data.data?.refreshToken || null
@@ -48,8 +65,8 @@ const useAuthStore = create(
       logout: async () => {
         if (isCognitoEnabled) {
           try {
-            const { signOut } = await import('aws-amplify/auth')
-            await signOut()
+            const { signOut } = await getCognitoAuth()
+            if (signOut) await signOut()
           } catch (_) {}
         } else {
           try { await apiLogout() } catch (_) {}
@@ -61,22 +78,40 @@ const useAuthStore = create(
       },
 
       loadUser: async () => {
+        // Prevent duplicate loading
+        if (get().isLoading) return
+        if (isCognitoEnabled && !import.meta.env.VITE_AWS_COGNITO_USER_POOL_ID) return
+
         set({ isLoading: true })
         try {
           if (isCognitoEnabled) {
-            const { fetchAuthSession } = await import('aws-amplify/auth')
+            const { fetchAuthSession } = await getCognitoAuth()
+            if (!fetchAuthSession) {
+              set({ user: null, accessToken: null, refreshToken: null })
+              return
+            }
+
             const session = await fetchAuthSession()
             const token =
               session.tokens?.idToken?.toString() ||
               session.tokens?.accessToken?.toString()
+
             if (!token) {
               set({ user: null, accessToken: null, refreshToken: null })
               return
             }
             localStorage.setItem('accessToken', token)
+
             const user = await syncUser()
             set({ user, accessToken: token })
           } else {
+            // For non-Cognito, only load if we have a token
+            const token = localStorage.getItem('accessToken')
+            if (!token) {
+              set({ user: null, accessToken: null, refreshToken: null })
+              return
+            }
+
             const user = await getMe()
             set({ user })
           }

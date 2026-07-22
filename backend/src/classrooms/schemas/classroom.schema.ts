@@ -30,3 +30,5 @@ export class Classroom {
 
 export const ClassroomSchema = SchemaFactory.createForClass(Classroom);
 ClassroomSchema.index({ teacherId: 1 });
+ClassroomSchema.index({ studentIds: 1 }); // For $in queries on student IDs
+ClassroomSchema.index({ teacherId: 1, createdAt: -1 }); // For listing classrooms by teacher

@@ -14,9 +14,21 @@ export class QuizzesRepository {
     return this.quizModel;
   }
 
-  async findById(id: string): Promise<QuizDocument | null> {
+  async findById(id: string) {
     if (!Types.ObjectId.isValid(id)) return null;
-    return this.quizModel.findById(id).where({ isDeleted: false }).exec();
+    return this.quizModel
+      .findById(id)
+      .where({ isDeleted: false })
+      .exec();
+  }
+
+  async findByIdLean(id: string) {
+    if (!Types.ObjectId.isValid(id)) return null;
+    return this.quizModel
+      .findById(id)
+      .where({ isDeleted: false })
+      .lean()
+      .exec();
   }
 
   async findPublic(dto: SearchQuizDto) {
@@ -85,6 +97,10 @@ export class QuizzesRepository {
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
+        .select(
+          'id title coverImageUrl visibility ownerId categoryId description totalPlays updatedAt createdAt',
+        )
+        .lean()
         .exec(),
       this.quizModel.countDocuments(filter),
     ]);

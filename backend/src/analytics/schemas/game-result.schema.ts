@@ -57,3 +57,4 @@ export class GameResult {
 export const GameResultSchema = SchemaFactory.createForClass(GameResult);
 GameResultSchema.index({ hostId: 1, createdAt: -1 });
 GameResultSchema.index({ quizId: 1 });
+GameResultSchema.index({ hostId: 1, quizId: 1 }); // For host's results per quiz

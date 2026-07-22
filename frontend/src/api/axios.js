@@ -13,17 +13,36 @@ const api = axios.create({
   withCredentials: true,
 })
 
+// Cache Amplify module to avoid repeated dynamic imports
+let cachedAmplifyAuth = null
+let amplifyImportPromise = null
+
+async function getAmplifyAuth() {
+  if (cachedAmplifyAuth) return cachedAmplifyAuth
+  if (amplifyImportPromise) return amplifyImportPromise
+
+  amplifyImportPromise = import('aws-amplify/auth')
+    .then((module) => {
+      cachedAmplifyAuth = module
+      return module
+    })
+    .catch(() => null)
+
+  return amplifyImportPromise
+}
+
 // Attach access token
 api.interceptors.request.use(async (config) => {
   let token = null
 
   if (isCognitoEnabled) {
     try {
-      // Dynamic import of Amplify auth — only when Cognito is configured
-      const { fetchAuthSession } = await import('aws-amplify/auth')
-      const session = await fetchAuthSession()
-      token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
-      if (token) localStorage.setItem('accessToken', token)
+      const { fetchAuthSession } = await getAmplifyAuth()
+      if (fetchAuthSession) {
+        const session = await fetchAuthSession()
+        token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
+        if (token) localStorage.setItem('accessToken', token)
+      }
     } catch (_) {
       // ignore amplify error, fallback to localStorage
     }

@@ -49,9 +49,11 @@ export class Quiz {
 
 export const QuizSchema = SchemaFactory.createForClass(Quiz);
 QuizSchema.index({ ownerId: 1 });
+QuizSchema.index({ ownerId: 1, isDeleted: 1 }); // Compound index for owner's active quizzes
 QuizSchema.index({ visibility: 1, isDeleted: 1 });
 QuizSchema.index({ categoryId: 1 });
 QuizSchema.index({ title: 'text' });
+QuizSchema.index({ ownerId: 1, updatedAt: -1 }); // For recent quizzes by owner
 QuizSchema.set('toJSON', {
   virtuals: true,
 

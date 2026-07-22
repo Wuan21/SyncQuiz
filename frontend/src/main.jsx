@@ -41,9 +41,19 @@ document.documentElement.classList.add(initialTheme)
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
-      staleTime: 60_000,
-      gcTime: 300_000,
+      retry: (failureCount, error) => {
+        // Don't retry on client errors (4xx)
+        if (error?.response?.status >= 400 && error?.response?.status < 500) {
+          return false
+        }
+        // Retry network errors and 5xx up to 2 times
+        return failureCount < 2
+      },
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+      staleTime: 60_000,     // 1 minute
+      gcTime: 300_000,       // 5 minutes garbage collection
+      refetchOnWindowFocus: false, // Don't refetch on every window focus (saves server load)
+      refetchOnReconnect: true,    // Refetch when coming back online
     },
   },
 })

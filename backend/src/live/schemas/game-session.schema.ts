@@ -191,6 +191,7 @@ export const GameSessionSchema = SchemaFactory.createForClass(GameSession);
 GameSessionSchema.index({ hostId: 1, createdAt: -1 });
 GameSessionSchema.index({ status: 1 });
 GameSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+GameSessionSchema.index({ 'players.playerId': 1 }); // For player reconnection lookups
 
 GameSessionSchema.set('toJSON', {
   virtuals: true,

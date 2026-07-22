@@ -19,6 +19,7 @@ import { HealthModule } from './health/health.module';
 import { AiModule } from './ai/ai.module';
 import { QuestionsModule } from './questions/questions.module';
 import { AdminModule } from './admin/admin.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { AdminModule } from './admin/admin.module';
     HealthModule,
     AiModule,
     AdminModule,
+    DashboardModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

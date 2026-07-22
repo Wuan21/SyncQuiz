@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
-  Zap, BookOpen, Users, Plus, Play, ArrowRight
+  Zap, BookOpen, Users, Plus, Play, ArrowRight, RefreshCw, AlertCircle
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getAnalytics } from '../../api/upload.api'
-import { getMyQuizzes } from '../../api/quizzes.api'
+import { getDashboardOverview } from '../../api/dashboard.api'
 import useAuthStore from '../../store/useAuthStore'
 import { Skeleton } from '../../components/ui/Skeleton'
 
@@ -63,7 +62,7 @@ function QuizCard({ quiz, index }) {
     >
       <div className="sq-quiz-cover">
         {quiz.coverImageUrl
-          ? <img src={quiz.coverImageUrl} alt={quiz.title} />
+          ? <img src={quiz.coverImageUrl} alt={quiz.title} loading="lazy" />
           : <BookOpen size={28} className="opacity-30" />
         }
       </div>
@@ -89,7 +88,19 @@ function QuizCard({ quiz, index }) {
   )
 }
 
-/* ─── Loading Skeleton ─── */
+/* ─── Loading Skeletons ─── */
+function StatSkeleton() {
+  return (
+    <div className="sq-stat">
+      <Skeleton className="w-11 h-11 rounded-xl shrink-0" />
+      <div className="flex-1">
+        <Skeleton className="h-7 w-12 mb-1" />
+        <Skeleton className="h-3 w-20" />
+      </div>
+    </div>
+  )
+}
+
 function LoadingCard() {
   return (
     <div className="sq-card">
@@ -104,14 +115,31 @@ function LoadingCard() {
   )
 }
 
-function StatSkeleton() {
+/* ─── Error State ─── */
+function ErrorState({ onRetry }) {
   return (
-    <div className="sq-stat">
-      <Skeleton className="w-11 h-11 rounded-xl shrink-0" />
-      <div className="flex-1">
-        <Skeleton className="h-7 w-12 mb-1" />
-        <Skeleton className="h-3 w-20" />
-      </div>
+    <div className="sq-card text-center py-8">
+      <AlertCircle size={40} className="mx-auto mb-3 opacity-50" />
+      <p className="font-medium mb-1">Không thể tải dữ liệu</p>
+      <p className="text-sm text-muted mb-4">Vui lòng thử lại sau</p>
+      <button onClick={onRetry} className="sq-btn sq-btn-primary sq-btn-sm">
+        <RefreshCw size={14} /> Thử lại
+      </button>
+    </div>
+  )
+}
+
+/* ─── Empty State ─── */
+function EmptyQuizzesState() {
+  const { t } = useTranslation()
+  return (
+    <div className="sq-card text-center py-10">
+      <BookOpen size={40} className="mx-auto mb-3 opacity-30" />
+      <p className="font-medium mb-1">{t('dashboard.noQuizzesYet')}</p>
+      <p className="text-sm mb-5">{t('dashboard.createFirstQuiz')}</p>
+      <Link to="/quizzes/new" className="sq-btn sq-btn-primary">
+        <Plus size={16} /> {t('dashboard.createQuizBtn')}
+      </Link>
     </div>
   )
 }
@@ -120,28 +148,20 @@ export default function DashboardPage() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
 
-  const { data: analytics, isLoading: analyticsLoading, isError: analyticsError } = useQuery({
-    queryKey: ['analytics'],
-    queryFn: getAnalytics,
+  // Single API call for all dashboard data
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['dashboard', 'overview'],
+    queryFn: getDashboardOverview,
     retry: 1,
-    staleTime: 60_000,
-  })
-
-  const { data: myQuizzes, isLoading: quizzesLoading, isError: quizzesError } = useQuery({
-    queryKey: ['quizzes', 'my'],
-    queryFn: () => getMyQuizzes({ limit: 6 }),
-    retry: 1,
-    staleTime: 60_000,
+    staleTime: 60_000, // 1 minute cache
+    gcTime: 300_000,   // 5 minutes garbage collection
+    select: (response) => response?.data,
   })
 
   const firstName = user?.fullName?.split(' ').slice(-1)[0] || user?.fullName?.split(' ')[0] || ''
 
-  // Determine if we should show real stat data or a placeholder
-  const quizCount = analytics?.quizCount ?? analytics?.data?.quizCount
-  const totalSessions = analytics?.totalSessions ?? analytics?.data?.totalSessions
-  const avgPlayers = analytics?.avgPlayers ?? analytics?.data?.avgPlayers
-
-  const quizzes = myQuizzes?.quizzes ?? myQuizzes?.data?.quizzes ?? myQuizzes ?? []
+  const stats = data?.statistics
+  const recentQuizzes = data?.recentQuizzes || []
 
   return (
     <div className="sq-page">
@@ -159,13 +179,13 @@ export default function DashboardPage() {
       <section className="sq-section">
         <h2 className="sq-section-title mb-4">Thống kê nhanh</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {analyticsLoading && !analytics ? (
+          {isLoading ? (
             <>
               <StatSkeleton />
               <StatSkeleton />
               <StatSkeleton />
             </>
-          ) : analyticsError ? (
+          ) : isError ? (
             <>
               <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value="—" bgColor="hsl(270 90% 58% / 0.12)" textColor="hsl(270 92% 64%)" />
               <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value="—" bgColor="hsl(330 85% 58% / 0.12)" textColor="hsl(330 90% 65%)" />
@@ -173,9 +193,9 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value={quizCount ?? '—'} bgColor="hsl(270 90% 58% / 0.12)" textColor="hsl(270 92% 64%)" delay={0} />
-              <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value={totalSessions ?? '—'} bgColor="hsl(330 85% 58% / 0.12)" textColor="hsl(330 90% 65%)" delay={60} />
-              <StatCard icon={Users} label={t('dashboard.avgPlayers')} value={avgPlayers ?? '—'} bgColor="hsl(145 65% 42% / 0.12)" textColor="hsl(145 55% 48%)" delay={120} />
+              <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value={stats?.totalQuizzes ?? '—'} bgColor="hsl(270 90% 58% / 0.12)" textColor="hsl(270 92% 64%)" delay={0} />
+              <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value={stats?.totalGames ?? '—'} bgColor="hsl(330 85% 58% / 0.12)" textColor="hsl(330 90% 65%)" delay={60} />
+              <StatCard icon={Users} label={t('dashboard.avgPlayers')} value={stats?.averagePlayers ?? '—'} bgColor="hsl(145 65% 42% / 0.12)" textColor="hsl(145 55% 48%)" delay={120} />
             </>
           )}
         </div>
@@ -215,22 +235,17 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {quizzesLoading && !quizzes.length ? (
+        {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => <LoadingCard key={i} />)}
           </div>
-        ) : quizzesError || (!quizzes.length && !quizzesLoading) ? (
-          <div className="sq-card text-center py-10">
-            <BookOpen size={40} className="mx-auto mb-3 opacity-30" />
-            <p className="font-medium mb-1">{t('dashboard.noQuizzesYet')}</p>
-            <p className="text-sm mb-5">{t('dashboard.createFirstQuiz')}</p>
-            <Link to="/quizzes/new" className="sq-btn sq-btn-primary">
-              <Plus size={16} /> {t('dashboard.createQuizBtn')}
-            </Link>
-          </div>
+        ) : isError ? (
+          <ErrorState onRetry={() => refetch()} />
+        ) : recentQuizzes.length === 0 ? (
+          <EmptyQuizzesState />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {quizzes.slice(0, 6).map((q, i) => (
+            {recentQuizzes.map((q, i) => (
               <QuizCard key={q.id} quiz={q} index={i} />
             ))}
           </div>

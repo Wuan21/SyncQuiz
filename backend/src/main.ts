@@ -11,17 +11,19 @@ import { createServer } from 'http';
 /* ── Standalone health-only HTTP server (starts before NestJS init) ─── */
 function startHealthServer(port: number): ReturnType<typeof createServer> {
   const http = require('http');
-  return http.createServer((req: any, res: any) => {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(
-      JSON.stringify({
-        status: 'ok',
-        service: 'syncquiz-backend',
-        uptime: Math.floor(process.uptime()),
-        timestamp: new Date().toISOString(),
-      }),
-    );
-  }).listen(port, '0.0.0.0');
+  return http
+    .createServer((req: any, res: any) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          status: 'ok',
+          service: 'syncquiz-backend',
+          uptime: Math.floor(process.uptime()),
+          timestamp: new Date().toISOString(),
+        }),
+      );
+    })
+    .listen(port, '0.0.0.0');
 }
 
 async function bootstrap() {
@@ -40,10 +42,17 @@ async function bootstrap() {
     const mongoose = require('mongoose');
     const origConnect = mongoose.connect.bind(mongoose);
     mongoose.connect = (uri: string, opts: any) =>
-      origConnect(uri, { ...opts, serverSelectionTimeoutMS: 5000, connectTimeoutMS: 5000 });
+      origConnect(uri, {
+        ...opts,
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000,
+      });
   } catch (_) {}
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: false, abortOnError: false });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: false,
+    abortOnError: false,
+  });
 
   /* ── Security ──────────────────────────────────────────────────── */
   app.use(helmet({ crossOriginResourcePolicy: false }));
