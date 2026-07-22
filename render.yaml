@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     rootDir: backend
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci && rm -rf dist && npm run build
     startCommand: npm run start:prod
     envVars:
       - key: NODE_ENV
