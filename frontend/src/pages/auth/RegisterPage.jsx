@@ -15,7 +15,7 @@ const isCognitoEnabled = !!(
 
 export default function RegisterPage() {
   const { t } = useTranslation()
-  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm()
+  const { register, handleSubmit, watch, formState: { errors } } = useForm()
   const loginSuccess = useAuthStore((s) => s.loginSuccess)
   const navigate = useNavigate()
 
@@ -26,8 +26,11 @@ export default function RegisterPage() {
   const [isConfirming, setIsConfirming] = useState(false)
   const [showPw, setShowPw] = useState(false)
   const [showConfirmPw, setShowConfirmPw] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   const onSubmit = async (data) => {
+    if (isLoading) return
+    setIsLoading(true)
     try {
       if (isCognitoEnabled) {
         setSignUpEmail(data.email)
@@ -60,6 +63,8 @@ export default function RegisterPage() {
       }
     } catch (err) {
       toast.error(err.message || err.response?.data?.message || t('common.error'))
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -201,8 +206,8 @@ export default function RegisterPage() {
                   {errors.confirm && <p className="sq-error">{errors.confirm.message}</p>}
                 </div>
 
-                <button type="submit" disabled={isSubmitting} className="sq-btn sq-btn-primary w-full py-3 mt-2">
-                  {isSubmitting ? (
+                <button type="submit" disabled={isLoading} className="sq-btn sq-btn-primary w-full py-3 mt-2 disabled:opacity-60 disabled:cursor-not-allowed">
+                  {isLoading ? (
                     <>
                       <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

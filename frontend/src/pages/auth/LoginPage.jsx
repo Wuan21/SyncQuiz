@@ -13,19 +13,64 @@ const isCognitoEnabled = !!(
   import.meta.env.VITE_AWS_COGNITO_CLIENT_ID
 )
 
+const AUTH_ERROR_MESSAGES = {
+  'UserNotConfirmedException': 'Tài khoản chưa được xác minh. Vui lòng kiểm tra email.',
+  'UserDisabledException': 'Tài khoản đã bị khóa.',
+  'NotAuthorizedException': 'Sai email hoặc mật khẩu.',
+  'TooManyRequestsException': 'Quá nhiều lần thử. Vui lòng chờ và thử lại.',
+  'LimitExceededException': 'Quá nhiều lần thử. Vui lòng chờ và thử lại.',
+  'InvalidParameterException': 'Thông tin đăng nhập không hợp lệ.',
+  'UserNotFoundException': 'Tài khoản không tồn tại.',
+  'CodeMismatchException': 'Mã xác minh không đúng.',
+  'ExpiredCodeException': 'Mã xác minh đã hết hạn.',
+  'PendingVerification': 'Tài khoản đang chờ xác minh. Vui lòng kiểm tra email.',
+  'INVALID_CREDENTIALS': 'Sai email hoặc mật khẩu.',
+  'USER_NOT_CONFIRMED': 'Tài khoản chưa được xác minh.',
+  'USER_DISABLED': 'Tài khoản đã bị khóa.',
+  'TOO_MANY_ATTEMPTS': 'Quá nhiều lần thử. Vui lòng chờ và thử lại.',
+  'AUTH_SERVICE_UNAVAILABLE': 'Máy chủ đang khởi động. Vui lòng chờ và thử lại.',
+  'LOGIN_FAILED': 'Đăng nhập thất bại. Vui lòng thử lại.',
+}
+
+function getAuthErrorMessage(err) {
+  if (!err) return 'Đã xảy ra lỗi không xác định.'
+  const code = err?.code || err?.name || ''
+  const msg = err?.message || err?.response?.data?.message || ''
+  for (const [key, val] of Object.entries(AUTH_ERROR_MESSAGES)) {
+    if (code.includes(key) || msg.includes(key)) return val
+  }
+  if (err?.response?.status === 0 || msg.includes('Network Error') || msg.includes('net::ERR')) {
+    return 'Không thể kết nối máy chủ. Vui lòng kiểm tra kết nối mạng.'
+  }
+  if (err?.response?.status === 502 || err?.response?.status === 503) {
+    return 'Máy chủ đang khởi động. Vui lòng chờ và thử lại.'
+  }
+  if (err?.response?.status === 429) {
+    return 'Quá nhiều yêu cầu. Vui lòng chờ và thử lại.'
+  }
+  if (msg) return msg
+  return 'Đăng nhập thất bại. Vui lòng thử lại.'
+}
+
 export default function LoginPage() {
   const { t } = useTranslation()
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm()
+  const { register, handleSubmit, formState: { errors } } = useForm()
   const loginSuccess = useAuthStore((s) => s.loginSuccess)
   const navigate = useNavigate()
   const [showPw, setShowPw] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   const onSubmit = async (data) => {
+    if (isLoading) return
+
+    setIsLoading(true)
+
     try {
       if (isCognitoEnabled) {
         try { await signOut() } catch (_) {}
+
         try {
-          await signIn({ username: data.email, password: data.password })
+          await signIn({ username: data.email.trim(), password: data.password })
         } catch (authErr) {
           if (authErr?.message?.includes('already a signed in user')) {
             await signOut()
@@ -34,22 +79,42 @@ export default function LoginPage() {
                 localStorage.removeItem(key)
               }
             })
-            await signIn({ username: data.email, password: data.password })
-          } else { throw authErr }
+            await signIn({ username: data.email.trim(), password: data.password })
+          } else {
+            throw authErr
+          }
         }
-        const session = await fetchAuthSession()
+
+        let session
+        try {
+          session = await fetchAuthSession()
+        } catch (_) {
+          throw new Error('Không thể lấy phiên đăng nhập. Vui lòng thử lại.')
+        }
+
         const token = session.tokens?.idToken?.toString() || session.tokens?.accessToken?.toString()
-        if (token) { localStorage.setItem('accessToken', token) }
-        const user = await syncUser()
+        if (!token) throw new Error('Không nhận được token đăng nhập.')
+
+        localStorage.setItem('accessToken', token)
+
+        let user
+        try {
+          user = await syncUser()
+        } catch (_) {
+          user = { email: data.email.trim(), role: 'host' }
+        }
+
         loginSuccess(user)
         navigate(user?.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
       } else {
-        const res = await login(data)
+        const res = await login({ email: data.email.trim(), password: data.password })
         loginSuccess(res)
         navigate(res?.user?.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
       }
     } catch (err) {
-      toast.error(err.message || err.response?.data?.message || t('common.error'))
+      toast.error(getAuthErrorMessage(err))
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -83,6 +148,7 @@ export default function LoginPage() {
                 autoComplete="email"
                 placeholder="you@example.com"
                 className="sq-input"
+                disabled={isLoading}
               />
               {errors.email && <p className="sq-error">{errors.email.message}</p>}
             </div>
@@ -97,12 +163,14 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   placeholder="••••••••"
                   className="sq-input pr-10"
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
                   aria-label={showPw ? 'Hide password' : 'Show password'}
+                  disabled={isLoading}
                 >
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -112,10 +180,10 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="sq-btn sq-btn-primary w-full py-3 mt-2"
+              disabled={isLoading}
+              className="sq-btn sq-btn-primary w-full py-3 mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? (
+              {isLoading ? (
                 <>
                   <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
