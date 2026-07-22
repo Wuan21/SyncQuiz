@@ -6,7 +6,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "nest build",
+    "build": "nest build --tsc",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
