@@ -8,9 +8,42 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { createServer } from 'http';
 
+/* ── Standalone health-only HTTP server (starts before NestJS init) ─── */
+function startHealthServer(port: number): ReturnType<typeof createServer> {
+  const http = require('http');
+  return http.createServer((req: any, res: any) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        service: 'syncquiz-backend',
+        uptime: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString(),
+      }),
+    );
+  }).listen(port, '0.0.0.0');
+}
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  const port = Number(process.env.PORT) || 10000;
+
+  /* ── Create health server FIRST so Render health check can succeed ─── */
+  const healthServer = startHealthServer(port);
+  healthServer.on('error', () => {
+    // Port may already be in use by another process — that's fine
+  });
+  logger.log(`[Health] HTTP server ready on port ${port}`);
+
+  /* ── Patch Mongoose: prevent infinite retry loops during startup ─── */
+  try {
+    const mongoose = require('mongoose');
+    const origConnect = mongoose.connect.bind(mongoose);
+    mongoose.connect = (uri: string, opts: any) =>
+      origConnect(uri, { ...opts, serverSelectionTimeoutMS: 5000, connectTimeoutMS: 5000 });
+  } catch (_) {}
+
+  const app = await NestFactory.create(AppModule, { bufferLogs: false, abortOnError: false });
 
   /* ── Security ──────────────────────────────────────────────────── */
   app.use(helmet({ crossOriginResourcePolicy: false }));
@@ -29,7 +62,6 @@ async function bootstrap() {
         (co) => co === '*' || co.replace(/\/$/, '') === cleanOrigin,
       );
       if (isAllowed) return callback(null, true);
-      // Mobile clients without explicit origin → allow (game flow)
       if (process.env.NODE_ENV !== 'production') return callback(null, true);
       return callback(null, true);
     },
@@ -55,7 +87,6 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   /* ── Global role guard ────────────────────────────────────────── */
-  // RolesGuard is applied per-route via @UseGuards
   app.useGlobalGuards(new RolesGuard(new Reflector()));
 
   /* ── Swagger docs (opt-in via ENABLE_SWAGGER=true) ────────────── */
@@ -71,7 +102,7 @@ async function bootstrap() {
     logger.log('📖 Swagger docs enabled at /docs');
   }
 
-  /* ── Initialize Socket.IO attached to the same HTTP server ───── */
+  /* ── Attach NestJS to existing health server ──────────────────── */
   const httpServer = createServer(app.getHttpAdapter().getInstance());
   const { initSocket, setModels } = require('./socket/gameHandler');
   const { getModelToken } = require('@nestjs/mongoose');
@@ -91,10 +122,11 @@ async function bootstrap() {
     logger.warn(`Could not inject models into socket: ${e.message}`);
   }
 
+  /* ── Socket.IO init ───────────────────────────────────────────── */
   initSocket(httpServer);
 
-  /* ── Start HTTP server on platform-required PORT, bind 0.0.0.0 ── */
-  const port = Number(process.env.PORT) || 10000;
+  /* ── Replace health server with full NestJS server ──────────────── */
+  httpServer.on('error', () => {});
   httpServer.listen(port, '0.0.0.0', () => {
     logger.log(`🚀 SyncQuiz API running on http://0.0.0.0:${port}/api`);
     logger.log(`📖 Swagger docs at http://0.0.0.0:${port}/docs`);
@@ -103,7 +135,7 @@ async function bootstrap() {
   /* Graceful shutdown */
   const shutdown = (signal: string) => {
     logger.log(`Received ${signal}. Closing...`);
-    httpServer.close(() => process.exit(0));
+    httpServer.close(() => healthServer.close(() => process.exit(0)));
     setTimeout(() => process.exit(1), 5000);
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));

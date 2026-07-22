@@ -40,6 +40,8 @@ import { AdminModule } from './admin/admin.module';
         return {
           uri: uri + retryWrites,
           dbName: config.get<string>('MONGODB_DB_NAME') || 'syncquiz',
+          serverSelectionTimeoutMS: 5000,
+          connectTimeoutMS: 5000,
         };
       },
       inject: [ConfigService],
