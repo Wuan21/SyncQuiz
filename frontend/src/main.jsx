@@ -38,6 +38,13 @@ const systemPrefersLight = window.matchMedia('(prefers-color-scheme: light)').ma
 const initialTheme = storedTheme || (systemPrefersLight ? 'light' : 'dark')
 document.documentElement.classList.add(initialTheme)
 
+// Helper to detect server waking up (502, 503, timeout errors)
+const isServerUnavailable = (error) => {
+  if (!error) return false
+  const status = error?.response?.status
+  return status === 502 || status === 503 || status === 504 || status === 0
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -46,14 +53,22 @@ const queryClient = new QueryClient({
         if (error?.response?.status >= 400 && error?.response?.status < 500) {
           return false
         }
-        // Retry network errors and 5xx up to 2 times
+        // For server unavailable (502-504, network errors), retry up to 3 times
+        if (isServerUnavailable(error)) {
+          return failureCount < 3
+        }
+        // Default: retry up to 2 times
         return failureCount < 2
       },
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 15000),
       staleTime: 60_000,     // 1 minute
       gcTime: 300_000,       // 5 minutes garbage collection
-      refetchOnWindowFocus: false, // Don't refetch on every window focus (saves server load)
-      refetchOnReconnect: true,    // Refetch when coming back online
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      networkMode: 'online',
+    },
+    mutations: {
+      retry: 1,
     },
   },
 })

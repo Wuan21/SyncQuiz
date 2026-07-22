@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
-  Zap, BookOpen, Users, Plus, Play, ArrowRight, RefreshCw, AlertCircle
+  Zap, BookOpen, Users, Plus, Play, ArrowRight, RefreshCw, AlertCircle, Loader2
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getDashboardOverview } from '../../api/dashboard.api'
@@ -115,7 +115,20 @@ function LoadingCard() {
   )
 }
 
-/* ─── Error State ─── */
+/* ─── Error States ─── */
+function ServerWakingUpState({ onRetry }) {
+  return (
+    <div className="sq-card text-center py-8">
+      <Loader2 size={40} className="mx-auto mb-3 animate-spin opacity-50" />
+      <p className="font-medium mb-1">Máy chủ đang khởi động</p>
+      <p className="text-sm text-muted mb-4">Vui lòng chờ trong giây lát...</p>
+      <button onClick={onRetry} className="sq-btn sq-btn-primary sq-btn-sm">
+        <RefreshCw size={14} /> Thử lại ngay
+      </button>
+    </div>
+  )
+}
+
 function ErrorState({ onRetry }) {
   return (
     <div className="sq-card text-center py-8">
@@ -147,21 +160,30 @@ function EmptyQuizzesState() {
 export default function DashboardPage() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
+  const isAuthLoading = useAuthStore((s) => s.isLoading)
+  const accessToken = useAuthStore((s) => s.accessToken)
 
-  // Single API call for all dashboard data
-  const { data, isLoading, isError, refetch } = useQuery({
+  // Only fetch dashboard data when auth is ready
+  const shouldFetch = !isAuthLoading && (user || accessToken)
+
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['dashboard', 'overview'],
     queryFn: getDashboardOverview,
-    retry: 1,
-    staleTime: 60_000, // 1 minute cache
-    gcTime: 300_000,   // 5 minutes garbage collection
+    enabled: shouldFetch,
+    retry: 2,
+    staleTime: 60_000,
+    gcTime: 300_000,
     select: (response) => response?.data,
+    throwOnError: false,
   })
 
   const firstName = user?.fullName?.split(' ').slice(-1)[0] || user?.fullName?.split(' ')[0] || ''
 
   const stats = data?.statistics
   const recentQuizzes = data?.recentQuizzes || []
+
+  // Determine which error state to show based on error type
+  const showServerWakingUp = isError && !data && (isLoading || isFetching)
 
   return (
     <div className="sq-page">
@@ -179,13 +201,13 @@ export default function DashboardPage() {
       <section className="sq-section">
         <h2 className="sq-section-title mb-4">Thống kê nhanh</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {isLoading ? (
+          {isLoading || !shouldFetch ? (
             <>
               <StatSkeleton />
               <StatSkeleton />
               <StatSkeleton />
             </>
-          ) : isError ? (
+          ) : isError && !data ? (
             <>
               <StatCard icon={BookOpen} label={t('dashboard.totalQuizzes')} value="—" bgColor="hsl(270 90% 58% / 0.12)" textColor="hsl(270 92% 64%)" />
               <StatCard icon={Zap} label={t('dashboard.gamesHosted')} value="—" bgColor="hsl(330 85% 58% / 0.12)" textColor="hsl(330 90% 65%)" />
@@ -235,12 +257,16 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {isLoading ? (
+        {isLoading || !shouldFetch ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => <LoadingCard key={i} />)}
           </div>
-        ) : isError ? (
-          <ErrorState onRetry={() => refetch()} />
+        ) : isError && !data ? (
+          showServerWakingUp ? (
+            <ServerWakingUpState onRetry={() => refetch()} />
+          ) : (
+            <ErrorState onRetry={() => refetch()} />
+          )
         ) : recentQuizzes.length === 0 ? (
           <EmptyQuizzesState />
         ) : (

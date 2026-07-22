@@ -16,10 +16,7 @@ export class QuizzesRepository {
 
   async findById(id: string) {
     if (!Types.ObjectId.isValid(id)) return null;
-    return this.quizModel
-      .findById(id)
-      .where({ isDeleted: false })
-      .exec();
+    return this.quizModel.findById(id).where({ isDeleted: false }).exec();
   }
 
   async findByIdLean(id: string) {
