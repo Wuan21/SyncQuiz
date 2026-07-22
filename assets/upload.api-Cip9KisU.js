@@ -1,0 +1,1 @@
+import{o as e}from"./index-CNbYOPpD.js";var t=t=>e.post(`/upload/presign`,t).then(e=>e.data),n=()=>e.get(`/analytics/dashboard`).then(e=>e.data),r=()=>e.get(`/categories`).then(e=>e.data);export{r as n,t as r,n as t};
