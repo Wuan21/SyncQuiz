@@ -9,10 +9,6 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { createServer } from 'http';
 
 /* ── Health check helper - only responds to /api/health path ── */
-function isHealthCheck(req: any): boolean {
-  const url = req.url?.split('?')[0];
-  return url === '/api/health' || url === '/health' || url === '/';
-}
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
