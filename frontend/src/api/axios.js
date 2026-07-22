@@ -56,6 +56,9 @@ api.interceptors.request.use(async (config) => {
     config.headers.Authorization = `Bearer ${token}`
   }
 
+  // Tag retries so we don't loop forever
+  config.__retryCount = config.__retryCount || 0
+
   return config
 })
 
@@ -76,6 +79,9 @@ const mapIds = (obj) => {
 // Guard against multiple simultaneous redirects
 let _authRedirecting = false
 
+// Helper to delay
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
 api.interceptors.response.use(
   (res) => {
     res.data = mapIds(res.data)
@@ -85,8 +91,22 @@ api.interceptors.response.use(
     const status = err.response?.status
     const original = err.config
 
-    // Network errors (no response) — propagate, don't redirect
-    if (!status) return Promise.reject(err)
+    // Network errors (no response) — retry with backoff to handle Render Free
+    // tier cold starts (server sleeps after 15min of inactivity, first request
+    // can take 30-60s to wake up).
+    if (!status && original) {
+      const retries = original.__retryCount || 0
+      if (retries < 3 && (err.code === 'ERR_NETWORK' || err.message === 'Network Error' || err.code === 'ECONNABORTED')) {
+        original.__retryCount = retries + 1
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.min(1000 * 2 ** retries, 8000)
+        await sleep(delay)
+        return api(original)
+      }
+      // Annotate so UI can show a friendly message
+      err.friendlyMessage = 'Không thể kết nối tới máy chủ. Vui lòng kiểm tra mạng hoặc thử lại sau ít phút (server có thể đang khởi động).'
+      return Promise.reject(err)
+    }
 
     // Skip auth redirect for login/register/refresh endpoints
     const isAuthEndpoint =

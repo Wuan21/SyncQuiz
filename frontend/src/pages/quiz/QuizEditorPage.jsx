@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Save, ArrowLeft, Trash2, Image, Clock, Star, ChevronUp, ChevronDown, Sparkles, Upload, Download } from 'lucide-react'
+import { Plus, Save, ArrowLeft, Trash2, Image, Clock, Star, ChevronUp, ChevronDown, Sparkles, Upload, Download, Check, Circle, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
   getQuizFull, createQuiz, updateQuiz,
@@ -325,28 +325,36 @@ export default function QuizEditorPage() {
             <p className="sq-text-subtle text-xs font-medium uppercase tracking-wider">Câu hỏi</p>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {questions.map((q, i) => (
-              <button
-                key={i}
-                onClick={() => setActiveQ(i)}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-all group flex items-start gap-2 sq-text-foreground ${
-                  i === activeQ
-                    ? 'sq-bg-primary sq-text-primary-foreground shadow-lg'
-                    : 'sq-text-muted hover:sq-bg-surface-2 hover:sq-text-foreground'
-                }`}
-              >
-                <span className={`shrink-0 w-5 h-5 rounded flex items-center justify-center text-xs font-bold mt-0.5 ${
-                  i === activeQ ? 'sq-bg-primary-foreground/20 sq-text-primary-foreground' : 'sq-bg-surface sq-text-muted'
-                }`}>{i + 1}</span>
-                <span className="flex-1 truncate leading-snug">{q.content || 'Câu trống'}</span>
-                <div className="flex flex-col gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={(e) => { e.stopPropagation(); moveQ(i, -1) }}
-                    className="hover:sq-text-foreground transition-colors"><ChevronUp size={11} /></button>
-                  <button onClick={(e) => { e.stopPropagation(); moveQ(i, 1) }}
-                    className="hover:sq-text-foreground transition-colors"><ChevronDown size={11} /></button>
-                </div>
-              </button>
-            ))}
+            {questions.length === 0 ? (
+              <div className="px-3 py-6 text-center sq-text-subtle text-xs">
+                Chưa có câu hỏi nào.<br />Nhấn "+ Thêm câu" bên dưới để bắt đầu.
+              </div>
+            ) : (
+              questions.map((q, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveQ(i)}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-all group flex items-start gap-2 ${
+                    i === activeQ
+                      ? 'sq-bg-primary sq-text-primary-foreground shadow-lg font-medium'
+                      : 'sq-text-foreground sq-bg-surface hover:sq-bg-surface-2 hover:sq-text-foreground'
+                  }`}
+                >
+                  <span className={`shrink-0 w-5 h-5 rounded flex items-center justify-center text-xs font-bold mt-0.5 ${
+                    i === activeQ ? 'sq-bg-primary-foreground/20 sq-text-primary-foreground' : 'sq-bg-surface-2 sq-text-muted border sq-border'
+                  }`}>{i + 1}</span>
+                  <span className="flex-1 truncate leading-snug">
+                    {q.content ? q.content : <span className={i === activeQ ? 'sq-text-primary-foreground/70 italic' : 'sq-text-subtle italic'}>Câu trống - nhấn để chỉnh</span>}
+                  </span>
+                  <div className="flex flex-col gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => { e.stopPropagation(); moveQ(i, -1) }}
+                      className={i === activeQ ? 'hover:sq-text-primary-foreground' : 'hover:sq-text-foreground'}><ChevronUp size={11} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); moveQ(i, 1) }}
+                      className={i === activeQ ? 'hover:sq-text-primary-foreground' : 'hover:sq-text-foreground'}><ChevronDown size={11} /></button>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
           <div className="p-2 sq-border-t">
             <button onClick={addQuestion}
@@ -431,9 +439,17 @@ export default function QuizEditorPage() {
             {/* Answer options */}
             <div className="sq-card">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium sq-text-muted">Đáp án <span className="sq-text-subtle text-xs font-normal">(click vào ô để chọn đáp án đúng)</span></p>
-                <span className="text-xs sq-text-success opacity-80">
-                  ✓ {q.options.filter((o) => o.isCorrect).length} đúng
+                <p className="text-sm font-medium sq-text-foreground">
+                  Đáp án <span className="sq-text-subtle text-xs font-normal">— nhấn vào đáp án để chọn làm đúng</span>
+                </p>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  q.options.filter((o) => o.isCorrect).length > 0
+                    ? 'sq-bg-success-soft sq-text-success'
+                    : 'sq-bg-warning-soft sq-text-warning'
+                }`}>
+                  {q.options.filter((o) => o.isCorrect).length > 0
+                    ? `✓ ${q.options.filter((o) => o.isCorrect).length} đúng`
+                    : '⚠ Chưa chọn đáp án'}
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -441,34 +457,48 @@ export default function QuizEditorPage() {
                   <div
                     key={oi}
                     onClick={() => updateOption(oi, 'isCorrect', true)}
-                    className={`relative rounded-xl p-3 cursor-pointer transition-all border-l-4 sq-text-foreground ${
+                    className={`relative rounded-xl p-3 cursor-pointer transition-all sq-text-foreground group ${
                       opt.isCorrect
-                        ? 'sq-bg-success-soft sq-border sq-border-success'
-                        : 'sq-bg-surface sq-border hover:sq-bg-surface-2'
+                        ? 'sq-bg-success-soft sq-border-2 sq-border-success ring-1 ring-success/30 shadow-sm'
+                        : 'sq-bg-surface sq-border sq-border hover:sq-bg-surface-2 hover:sq-border-primary/40'
                     }`}
-                    style={{ borderLeftColor: COLORS[oi] }}
+                    style={opt.isCorrect ? { borderLeftWidth: '4px', borderLeftColor: 'var(--success)' } : { borderLeftWidth: '4px', borderLeftColor: COLORS[oi] }}
                   >
                     <div className="flex items-center gap-2 mb-1.5">
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                        opt.isCorrect ? 'sq-border-success' : ''
-                      }`} style={{ borderColor: opt.isCorrect ? 'var(--success)' : COLORS[oi] }}>
-                        {opt.isCorrect && <div className="w-2 h-2 rounded-full sq-bg-success" />}
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                        opt.isCorrect
+                          ? 'border-success bg-success text-white'
+                          : 'border-muted-foreground/40 group-hover:border-primary/60'
+                      }`}>
+                        {opt.isCorrect
+                          ? <Check size={11} strokeWidth={3} className="text-white" />
+                          : <Circle size={11} className="opacity-0 group-hover:opacity-100 text-primary/60" />
+                        }
                       </div>
-                      <span className="text-xs font-semibold sq-text-foreground">
+                      <span className={`text-xs font-bold ${
+                        opt.isCorrect ? 'sq-text-success' : 'sq-text-muted'
+                      }`}>
                         {['A', 'B', 'C', 'D'][oi]}
                       </span>
-                      {opt.isCorrect && <span className="text-xs sq-text-success ml-auto">✓ Đúng</span>}
+                      {opt.isCorrect && (
+                        <span className="text-xs sq-text-success ml-auto font-bold flex items-center gap-1">
+                          <Check size={11} strokeWidth={3} /> ĐÚNG
+                        </span>
+                      )}
                     </div>
                     <input
                       value={opt.text}
                       onChange={(e) => { e.stopPropagation(); updateOption(oi, 'text', e.target.value) }}
                       onClick={(e) => e.stopPropagation()}
-                      placeholder={`Đáp án ${['A', 'B', 'C', 'D'][oi]}...`}
+                      placeholder={`Nhập đáp án ${['A', 'B', 'C', 'D'][oi]}...`}
                       className="bg-transparent outline-none w-full text-sm placeholder:sq-text-subtle sq-text-foreground"
                     />
                   </div>
                 ))}
               </div>
+              <p className="sq-text-subtle text-[11px] mt-2.5 flex items-center gap-1">
+                <Info size={11} /> Mỗi câu hỏi hiện tại chỉ chọn được 1 đáp án đúng. Nhấn vào đáp án khác để thay đổi.
+              </p>
             </div>
 
             {/* Explanation */}

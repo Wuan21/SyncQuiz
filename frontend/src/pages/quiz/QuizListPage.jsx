@@ -188,7 +188,16 @@ export default function QuizListPage() {
         <div className="sq-card sq-border-danger sq-bg-danger-soft mb-6 text-center py-8">
           <AlertTriangle size={32} className="sq-text-danger mx-auto mb-2" />
           <p className="sq-text-danger font-medium mb-1">Không thể tải danh sách quiz</p>
-          <p className="sq-text-muted text-sm">{error.response?.data?.message || error.message}</p>
+          <p className="sq-text-muted text-sm mb-4">
+            {error.friendlyMessage || error.response?.data?.message || error.message}
+          </p>
+          <button
+            type="button"
+            onClick={() => qc.invalidateQueries(['quizzes', 'my'])}
+            className="sq-btn sq-btn-primary sq-btn-sm"
+          >
+            Thử lại
+          </button>
         </div>
       )}
 
