@@ -8,34 +8,15 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { createServer } from 'http';
 
-/* ── Standalone health-only HTTP server (starts before NestJS init) ─── */
-function startHealthServer(port: number): ReturnType<typeof createServer> {
-  const http = require('http');
-  return http
-    .createServer((req: any, res: any) => {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          status: 'ok',
-          service: 'syncquiz-backend',
-          uptime: Math.floor(process.uptime()),
-          timestamp: new Date().toISOString(),
-        }),
-      );
-    })
-    .listen(port, '0.0.0.0');
+/* ── Health check helper - only responds to /api/health path ── */
+function isHealthCheck(req: any): boolean {
+  const url = req.url?.split('?')[0];
+  return url === '/api/health' || url === '/health' || url === '/';
 }
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const port = Number(process.env.PORT) || 10000;
-
-  /* ── Create health server FIRST so Render health check can succeed ─── */
-  const healthServer = startHealthServer(port);
-  healthServer.on('error', () => {
-    // Port may already be in use by another process — that's fine
-  });
-  logger.log(`[Health] HTTP server ready on port ${port}`);
 
   /* ── Patch Mongoose: prevent infinite retry loops during startup ─── */
   try {
@@ -44,8 +25,8 @@ async function bootstrap() {
     mongoose.connect = (uri: string, opts: any) =>
       origConnect(uri, {
         ...opts,
-        serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 5000,
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000,
       });
   } catch (_) {}
 
@@ -111,7 +92,7 @@ async function bootstrap() {
     logger.log('📖 Swagger docs enabled at /docs');
   }
 
-  /* ── Attach NestJS to existing health server ──────────────────── */
+  /* ── Attach NestJS to HTTP server ─────────────────────────────── */
   const httpServer = createServer(app.getHttpAdapter().getInstance());
   const { initSocket, setModels } = require('./socket/gameHandler');
   const { getModelToken } = require('@nestjs/mongoose');
@@ -134,7 +115,7 @@ async function bootstrap() {
   /* ── Socket.IO init ───────────────────────────────────────────── */
   initSocket(httpServer);
 
-  /* ── Replace health server with full NestJS server ──────────────── */
+  /* ── Start server ──────────────────────────────────────────────── */
   httpServer.on('error', () => {});
   httpServer.listen(port, '0.0.0.0', () => {
     logger.log(`🚀 SyncQuiz API running on http://0.0.0.0:${port}/api`);
@@ -144,7 +125,7 @@ async function bootstrap() {
   /* Graceful shutdown */
   const shutdown = (signal: string) => {
     logger.log(`Received ${signal}. Closing...`);
-    httpServer.close(() => healthServer.close(() => process.exit(0)));
+    httpServer.close(() => process.exit(0));
     setTimeout(() => process.exit(1), 5000);
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
